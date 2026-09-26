@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, View, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { Alert, StyleSheet, TouchableOpacity, View, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
@@ -7,6 +7,9 @@ import { signOut } from 'firebase/auth';
 import { auth, db } from '@/services/firebase';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useTheme } from '@/hooks/use-theme';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 
 type Agendamento = {
   id: string;
@@ -17,8 +20,13 @@ type Agendamento = {
   status: 'pendente' | 'confirmado' | 'cancelado';
 };
 
+function idConversa(a: string, b: string) {
+  return [a, b].sort().join('_');
+}
+
 export default function DashboardInstrutor() {
   const router = useRouter();
+  const theme = useTheme();
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [nomeInstrutor, setNomeInstrutor] = useState('');
@@ -33,9 +41,7 @@ export default function DashboardInstrutor() {
 
     try {
       const instrutorSnap = await getDoc(doc(db, 'instrutores', uid));
-      if (instrutorSnap.exists()) {
-        setNomeInstrutor(instrutorSnap.data().nome ?? '');
-      }
+      if (instrutorSnap.exists()) setNomeInstrutor(instrutorSnap.data().nome ?? '');
 
       const q = query(collection(db, 'agendamentos'), where('instrutorId', '==', uid));
       const snapshot = await getDocs(q);
@@ -63,92 +69,114 @@ export default function DashboardInstrutor() {
   async function atualizarStatus(id: string, status: 'confirmado' | 'cancelado') {
     try {
       await updateDoc(doc(db, 'agendamentos', id), { status });
-      setAgendamentos(prev =>
-        prev.map(a => a.id === id ? { ...a, status } : a)
-      );
+      setAgendamentos((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
     } catch {
       Alert.alert('Erro', 'Não foi possível atualizar o status.');
     }
   }
 
-  async function handleLogout() {
-    await signOut(auth);
-    router.replace('/');
+  function handleLogout() {
+    Alert.alert('Sair da conta', 'Tem certeza que deseja sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut(auth);
+          router.replace('/');
+        },
+      },
+    ]);
   }
 
   const corStatus: Record<string, string> = {
-    pendente: '#f59e0b',
-    confirmado: '#16a34a',
-    cancelado: '#dc2626',
+    pendente: theme.warning,
+    confirmado: theme.success,
+    cancelado: theme.danger,
   };
+
+  const uid = auth.currentUser?.uid;
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.headerRow}>
           <View>
-            <ThemedText type="title" style={styles.titulo}>👨‍🏫 Dashboard</ThemedText>
-            {nomeInstrutor ? <ThemedText style={styles.subtitulo}>Olá, {nomeInstrutor}!</ThemedText> : null}
+            <ThemedText type="title" style={styles.titulo}>
+              Dashboard
+            </ThemedText>
+            {nomeInstrutor ? (
+              <ThemedText style={[styles.subtitulo, { color: theme.textSecondary }]}>Olá, {nomeInstrutor}!</ThemedText>
+            ) : null}
           </View>
           <View style={styles.headerBotoes}>
-            <TouchableOpacity style={styles.botaoRelatorios} onPress={() => router.push('/relatorios-instrutor')}>
-              <ThemedText style={styles.botaoRelatoriosTexto}>📊</ThemedText>
+            <TouchableOpacity style={[styles.botaoIcone, { borderColor: theme.border }]} onPress={() => router.push('/relatorios-instrutor')}>
+              <ThemedText style={{ fontSize: 16 }}>📊</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.botaoSair} onPress={handleLogout}>
-              <ThemedText style={styles.botaoSairTexto}>Sair</ThemedText>
+            <TouchableOpacity style={[styles.botaoIcone, { borderColor: theme.border }]} onPress={handleLogout}>
+              <ThemedText style={{ color: theme.danger, fontWeight: '700' }}>Sair</ThemedText>
             </TouchableOpacity>
           </View>
         </View>
 
-        <ThemedText style={styles.secaoTitulo}>
-          Agendamentos ({agendamentos.length})
-        </ThemedText>
+        <ThemedText style={styles.secaoTitulo}>Agendamentos ({agendamentos.length})</ThemedText>
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#16a34a" />
-            <ThemedText style={styles.loadingTexto}>Carregando agendamentos...</ThemedText>
+            <ActivityIndicator size="large" color={theme.primary} />
           </View>
         ) : agendamentos.length === 0 ? (
-          <View style={styles.loadingContainer}>
-            <ThemedText style={styles.loadingTexto}>Nenhum agendamento ainda.</ThemedText>
-            <ThemedText style={styles.loadingSubTexto}>Seus agendamentos aparecerão aqui quando alunos marcarem aulas.</ThemedText>
-          </View>
+          <EmptyState icon="📅" titulo="Nenhum agendamento ainda" subtitulo="Seus agendamentos aparecerão aqui quando alunos marcarem aulas." />
         ) : (
           <FlatList
             data={agendamentos}
             keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.lista}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <View style={styles.card}>
+              <Card style={styles.card}>
                 <View style={styles.cardTop}>
                   <View>
                     <ThemedText style={styles.cardAluno}>🎓 {item.alunoNome}</ThemedText>
-                    <ThemedText style={styles.cardData}>📅 {item.dia} às {item.horario}</ThemedText>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: corStatus[item.status] + '33' }]}>
-                    <ThemedText style={[styles.badgeTexto, { color: corStatus[item.status] }]}>
-                      {item.status}
+                    <ThemedText style={[styles.cardData, { color: theme.textSecondary }]}>
+                      📅 {item.dia} às {item.horario}
                     </ThemedText>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: corStatus[item.status] + '22' }]}>
+                    <ThemedText style={[styles.badgeTexto, { color: corStatus[item.status] }]}>{item.status}</ThemedText>
                   </View>
                 </View>
 
-                {item.status === 'pendente' && (
-                  <View style={styles.acoes}>
-                    <TouchableOpacity style={styles.botaoConfirmar} onPress={() => atualizarStatus(item.id, 'confirmado')}>
-                      <ThemedText style={styles.botaoAcaoTexto}>✅ Confirmar</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.botaoCancelar} onPress={() => atualizarStatus(item.id, 'cancelado')}>
-                      <ThemedText style={styles.botaoAcaoTexto}>❌ Cancelar</ThemedText>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
+                <View style={styles.acoes}>
+                  {item.status === 'pendente' && (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.botaoAcao, { backgroundColor: theme.success }]}
+                        onPress={() => atualizarStatus(item.id, 'confirmado')}>
+                        <ThemedText style={styles.botaoAcaoTexto}>✅ Confirmar</ThemedText>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.botaoAcao, { backgroundColor: theme.danger }]}
+                        onPress={() => atualizarStatus(item.id, 'cancelado')}>
+                        <ThemedText style={styles.botaoAcaoTexto}>❌ Cancelar</ThemedText>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.botaoChat, { borderColor: theme.border }]}
+                    onPress={() =>
+                      uid &&
+                      router.push(
+                        `/chat/${idConversa(item.alunoId, uid)}?alunoId=${item.alunoId}&alunoNome=${item.alunoNome}`
+                      )
+                    }>
+                    <ThemedText>💬</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </Card>
             )}
           />
         )}
-
       </SafeAreaView>
     </ThemedView>
   );
@@ -156,30 +184,23 @@ export default function DashboardInstrutor() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, padding: 24 },
+  safeArea: { flex: 1, padding: 20 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  titulo: { fontSize: 28, fontWeight: 'bold' },
-  subtitulo: { opacity: 0.7, marginTop: 2 },
+  titulo: { fontSize: 24, fontWeight: '800' },
+  subtitulo: { marginTop: 2 },
   headerBotoes: { flexDirection: 'row', gap: 8 },
-  botaoRelatorios: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#333', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center' },
-  botaoRelatoriosTexto: { fontSize: 16 },
-  botaoSair: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#333', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  botaoSairTexto: { color: '#dc2626', fontWeight: 'bold' },
-  secaoTitulo: { fontWeight: 'bold', fontSize: 16, marginBottom: 16 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingTexto: { opacity: 0.6, textAlign: 'center', fontSize: 16 },
-  loadingSubTexto: { opacity: 0.4, textAlign: 'center', fontSize: 13 },
-  card: {
-    backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16,
-    marginBottom: 12, borderWidth: 1, borderColor: '#333'
-  },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  cardAluno: { fontWeight: 'bold', fontSize: 16, marginBottom: 4 },
-  cardData: { opacity: 0.7 },
+  botaoIcone: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center' },
+  secaoTitulo: { fontWeight: '700', fontSize: 15, marginBottom: 16 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  lista: { paddingBottom: 24, gap: 12 },
+  card: { gap: 12 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cardAluno: { fontWeight: '700', fontSize: 15, marginBottom: 4 },
+  cardData: { fontSize: 13 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeTexto: { fontWeight: 'bold', fontSize: 12, textTransform: 'capitalize' },
-  acoes: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: '#333', paddingTop: 12 },
-  botaoConfirmar: { flex: 1, backgroundColor: '#16a34a', padding: 10, borderRadius: 10, alignItems: 'center' },
-  botaoCancelar: { flex: 1, backgroundColor: '#dc2626', padding: 10, borderRadius: 10, alignItems: 'center' },
-  botaoAcaoTexto: { color: '#fff', fontWeight: 'bold' },
+  badgeTexto: { fontWeight: '700', fontSize: 12, textTransform: 'capitalize' },
+  acoes: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: '#00000010', paddingTop: 12 },
+  botaoAcao: { flex: 1, padding: 10, borderRadius: 10, alignItems: 'center' },
+  botaoAcaoTexto: { color: '#fff', fontWeight: '700' },
+  botaoChat: { width: 44, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 });

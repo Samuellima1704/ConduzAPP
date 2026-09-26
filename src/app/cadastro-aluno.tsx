@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, TouchableOpacity, View, TextInput, Alert, ScrollView } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -7,23 +7,32 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/services/firebase';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useTheme } from '@/hooks/use-theme';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+
+const STATUS_OPCOES = ['Iniciando processo', 'Reprovei no prático', 'Quero mais prática'];
 
 export default function CadastroAluno() {
   const router = useRouter();
+  const theme = useTheme();
   const [nome, setNome] = useState('');
+  const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [statusCNH, setStatusCNH] = useState('');
+  const [erro, setErro] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleCadastro() {
+    setErro('');
     if (!nome || !email || !senha || !confirmarSenha) {
-      Alert.alert('Atenção', 'Preencha todos os campos!');
+      setErro('Preencha todos os campos obrigatórios!');
       return;
     }
     if (senha !== confirmarSenha) {
-      Alert.alert('Erro', 'As senhas não coincidem!');
+      setErro('As senhas não coincidem!');
       return;
     }
     setLoading(true);
@@ -31,16 +40,15 @@ export default function CadastroAluno() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
       await setDoc(doc(db, 'alunos', userCredential.user.uid), {
         nome,
+        cpf: cpf.replace(/\D/g, ''),
         email,
         statusCNH,
         tipo: 'aluno',
         criadoEm: new Date(),
       });
-      Alert.alert('✅ Sucesso!', `Bem-vindo, ${nome}!`, [
-        { text: 'OK', onPress: () => router.push('/busca-instrutores') }
-      ]);
+      router.replace('/(aluno)');
     } catch (error: any) {
-      Alert.alert('Erro', error.message);
+      setErro(error.message ?? 'Não foi possível criar sua conta.');
     } finally {
       setLoading(false);
     }
@@ -50,25 +58,58 @@ export default function CadastroAluno() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <ThemedText type="title" style={styles.titulo}>📝 Cadastro do Aluno</ThemedText>
-          <ThemedText style={styles.subtitulo}>Crie sua conta para encontrar instrutores</ThemedText>
+          <ThemedText type="title" style={styles.titulo}>
+            📝 Cadastro do Aluno
+          </ThemedText>
+          <ThemedText style={[styles.subtitulo, { color: theme.textSecondary }]}>
+            Crie sua conta para encontrar instrutores
+          </ThemedText>
+
           <View style={styles.form}>
-            <TextInput style={styles.input} placeholder="Nome completo" placeholderTextColor="#888" value={nome} onChangeText={setNome} />
-            <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#888" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-            <TextInput style={styles.input} placeholder="Senha" placeholderTextColor="#888" value={senha} onChangeText={setSenha} secureTextEntry />
-            <TextInput style={styles.input} placeholder="Confirmar senha" placeholderTextColor="#888" value={confirmarSenha} onChangeText={setConfirmarSenha} secureTextEntry />
+            <Input placeholder="Nome completo" value={nome} onChangeText={setNome} />
+            <Input placeholder="CPF" value={cpf} onChangeText={setCpf} keyboardType="numeric" />
+            <Input
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Input placeholder="Senha" value={senha} onChangeText={setSenha} isPassword />
+            <Input
+              placeholder="Confirmar senha"
+              value={confirmarSenha}
+              onChangeText={setConfirmarSenha}
+              isPassword
+              error={erro}
+            />
+
             <ThemedText style={styles.label}>Qual é o seu status na CNH?</ThemedText>
-            {['Iniciando processo', 'Reprovei no prático', 'Quero mais prática'].map((opcao) => (
-              <TouchableOpacity key={opcao} style={[styles.opcao, statusCNH === opcao && styles.opcaoSelecionada]} onPress={() => setStatusCNH(opcao)}>
-                <ThemedText style={statusCNH === opcao ? styles.opcaoTextoAtivo : styles.opcaoTexto}>{opcao}</ThemedText>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={[styles.botao, loading && styles.botaoDesabilitado]} onPress={handleCadastro} disabled={loading}>
-              <ThemedText style={styles.textoBotao}>{loading ? 'Criando conta...' : 'Criar conta'}</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.back()}>
-              <ThemedText style={styles.voltar}>Já tenho conta. Fazer login</ThemedText>
-            </TouchableOpacity>
+            {STATUS_OPCOES.map((opcao) => {
+              const ativo = statusCNH === opcao;
+              return (
+                <TouchableOpacity
+                  key={opcao}
+                  style={[
+                    styles.opcao,
+                    {
+                      backgroundColor: ativo ? theme.primary + '15' : theme.surface,
+                      borderColor: ativo ? theme.primary : theme.border,
+                    },
+                  ]}
+                  onPress={() => setStatusCNH(opcao)}>
+                  <ThemedText style={{ color: ativo ? theme.primary : theme.textSecondary, fontWeight: ativo ? '700' : '400' }}>
+                    {opcao}
+                  </ThemedText>
+                </TouchableOpacity>
+              );
+            })}
+
+            <Button title="Criar conta" onPress={handleCadastro} loading={loading} />
+
+            <ThemedText style={[styles.voltar, { color: theme.primary }]} onPress={() => router.back()}>
+              Já tenho conta. Fazer login
+            </ThemedText>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -79,17 +120,10 @@ export default function CadastroAluno() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1, padding: 24 },
-  titulo: { fontSize: 28, fontWeight: 'bold', marginBottom: 8, marginTop: 16 },
-  subtitulo: { opacity: 0.7, marginBottom: 32 },
+  titulo: { fontSize: 26, fontWeight: '800', marginBottom: 8, marginTop: 8 },
+  subtitulo: { fontSize: 14, marginBottom: 28 },
   form: { gap: 16 },
-  input: { borderWidth: 1, borderColor: '#333', borderRadius: 12, padding: 16, fontSize: 16, color: '#fff', backgroundColor: '#1a1a1a' },
-  label: { fontWeight: 'bold', marginTop: 8 },
-  opcao: { borderWidth: 1, borderColor: '#333', borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#1a1a1a' },
-  opcaoSelecionada: { borderColor: '#2563eb', backgroundColor: '#1e3a8a' },
-  opcaoTexto: { color: '#888' },
-  opcaoTextoAtivo: { color: '#fff', fontWeight: 'bold' },
-  botao: { backgroundColor: '#2563eb', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  botaoDesabilitado: { opacity: 0.6 },
-  textoBotao: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  voltar: { textAlign: 'center', color: '#2563eb', marginTop: 4, marginBottom: 32 },
+  label: { fontWeight: '700', marginTop: 4 },
+  opcao: { borderWidth: 1.5, borderRadius: 14, padding: 14, alignItems: 'center' },
+  voltar: { textAlign: 'center', fontWeight: '700', marginTop: 4, marginBottom: 32 },
 });
