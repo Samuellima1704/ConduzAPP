@@ -46,6 +46,7 @@ import {
   matchesBooking,
   canReviewPeer,
   instructorList,
+  instructorDashboard,
 } from "@/lib/presentation";
 const labels: Record<string, string> = {
   solicitado: "Solicitação enviada",
@@ -592,7 +593,7 @@ function Search({
           <View style={s.row}>
             <Badge title="Credenciamento aprovado" tone="success" />
             <Text style={s.price}>
-              {money(u.price)} <Text style={s.small}>/ 60 min</Text>
+              {money(u.price)} <Text style={s.small}>/ 50 min</Text>
             </Text>
           </View>
           <TouchableOpacity
@@ -658,7 +659,7 @@ function Search({
             {[1, 2].map((count) => (
               <Button
                 key={count}
-                title={count === 1 ? "1 aula · 60 min" : "2 aulas · 120 min"}
+                title={count === 1 ? "1 aula · 50 min" : "2 aulas · 2 × 50 min"}
                 variant={lessonCount === count ? "primary" : "secondary"}
                 onPress={() => {
                   setLessonCount(count);
@@ -953,9 +954,16 @@ function InstructorHome({
   const list = Object.values(state!.bookings);
   const [showCredential, setShowCredential] = useState(false);
   const [showAvailability, setShowAvailability] = useState(false);
-  const upcoming = list
-    .filter((b) => b.status === "confirmado" && end(b) > state!.now)
-    .sort((a, b) => a.start - b.start);
+  // Dashboard: métricas calculadas no cliente a partir das reservas já projetadas pelo servidor.
+  const d = instructorDashboard(list, me.id, state!.now);
+  const metrics: [string | number, string][] = [
+    [d.today, "Aulas hoje"],
+    [d.week, "Próximos 7 dias"],
+    [d.requests, "Solicitações"],
+    [d.awaitingPayment, "Aguardando pagamento"],
+    [d.completed, "Concluídas"],
+    [d.hours.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " h", "Horas ministradas"],
+  ];
   return (
     <View style={s.gap}>
       <View style={s.welcome}>
@@ -965,19 +973,38 @@ function InstructorHome({
         </Text>
       </View>
       <View style={s.row}>
-        <Card style={s.metric}>
-          <Text style={s.number}>
-            {list.filter((b) => b.status === "solicitado").length}
-          </Text>
-          <Text>Solicitações</Text>
-        </Card>
-        <Card style={s.metric}>
-          <Text style={s.number}>
-            {list.filter((b) => b.status === "confirmado").length}
-          </Text>
-          <Text>Confirmadas</Text>
-        </Card>
+        {metrics.map(([value, label]) => (
+          <Card key={label} style={s.dashboardMetric}>
+            <Text style={s.number}>{value}</Text>
+            <Text>{label}</Text>
+          </Card>
+        ))}
       </View>
+      <Card style={s.gapSmall}>
+        <Text style={s.cardTitle}>Resumo financeiro simulado</Text>
+        <View style={s.row}>
+          <View style={s.flex}>
+            <Text style={s.price}>{money(d.earned)}</Text>
+            <Text style={s.muted}>Líquido das aulas concluídas</Text>
+          </View>
+          <View style={s.flex}>
+            <Text style={s.price}>{money(d.forecast)}</Text>
+            <Text style={s.muted}>Previsto nas aulas pagas futuras</Text>
+          </View>
+        </View>
+        <Text style={s.small}>
+          Valores após a comissão de 3% e eventuais estornos. Nenhum valor real
+          é movimentado.
+        </Text>
+      </Card>
+      {d.toComplete > 0 && (
+        <Text style={s.error}>
+          {d.toComplete === 1
+            ? "1 aula terminada aguarda conclusão."
+            : `${d.toComplete} aulas terminadas aguardam conclusão.`}{" "}
+          Conclua em Agendamentos para liberar a avaliação.
+        </Text>
+      )}
       <Button title="Ver solicitações e aulas" onPress={goBookings} />
       <TouchableOpacity
         accessibilityRole="button"
@@ -994,8 +1021,8 @@ function InstructorHome({
       </View>
       <Card style={s.gap}>
         <Text style={s.cardTitle}>Próximas aulas confirmadas</Text>
-        {upcoming.length ? (
-          upcoming.slice(0, 3).map((b) => (
+        {d.upcoming.length ? (
+          d.upcoming.slice(0, 3).map((b) => (
             <View key={b.id} style={s.gapSmall}>
               <Text>{state!.users[b.student]?.name || "Aluno"}</Text>
               <Text style={s.muted}>
@@ -1005,6 +1032,35 @@ function InstructorHome({
           ))
         ) : (
           <Text style={s.muted}>Nenhuma próxima aula confirmada.</Text>
+        )}
+      </Card>
+      <Card style={s.gap}>
+        <Text style={s.cardTitle}>Histórico recente</Text>
+        {d.history.length ? (
+          d.history.map((b) => (
+            <View key={b.id} style={s.row}>
+              <View style={s.flex}>
+                <Text>{state!.users[b.student]?.name || "Aluno"}</Text>
+                <Text style={s.muted}>
+                  {dateTime(b.start)} · {b.duration} min
+                </Text>
+              </View>
+              <Badge
+                title={labels[b.status] || b.status}
+                tone={
+                  b.status === "concluido"
+                    ? "success"
+                    : b.status.startsWith("falta_")
+                      ? "danger"
+                      : "neutral"
+                }
+              />
+            </View>
+          ))
+        ) : (
+          <Text style={s.muted}>
+            Aulas concluídas, canceladas ou com falta aparecerão aqui.
+          </Text>
         )}
       </Card>
       <Card style={s.gap}>

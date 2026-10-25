@@ -7,6 +7,7 @@ const {
 } = require("./identity");
 const { address, formatAddress } = require("./address");
 const {
+  issueStartCode,
   updateStarts,
   projectBooking,
   confirmStart,
@@ -14,6 +15,9 @@ const {
 } = require("./start-code");
 const HOUR = 3600000;
 const DAY = 24 * HOUR;
+// Aula padrão de 50 minutos iniciando em hora cheia; os 10 minutos restantes são intervalo.
+// Reservas antigas preservam a própria duração.
+const LESSON_MIN = 50;
 const fail = (message) => {
   throw new Error(message);
 };
@@ -197,7 +201,7 @@ function slots(state, instructor, now) {
     start += HOUR
   ) {
     try {
-      validSlot(state, instructor, start, 60, now);
+      validSlot(state, instructor, start, LESSON_MIN, now);
       result.push(start);
     } catch {}
   }
@@ -403,6 +407,14 @@ function execute(
         "Instrutor sem autorização válida.",
       );
     };
+    // Aula já paga: suspensão ou credencial em renovação não impedem registrar o que foi dado.
+    const ownLesson = () => {
+      participant();
+      check(
+        b.instructor === actor.uid,
+        "Ação exclusiva do instrutor desta aula.",
+      );
+    };
     const student = () => {
       participant();
       check(b.student === actor.uid, "Ação exclusiva do aluno.");
@@ -432,7 +444,7 @@ function execute(
           break;
         }
         case "confirmStart":
-          instructor();
+          ownLesson();
           if (b.startConfirmation?.status === "confirmado")
             return {
               state: s,
@@ -528,14 +540,14 @@ function execute(
           for (let i = 0; i < count; i++) {
             const start = input.start + i * HOUR,
               bookingId = i === 0 ? id : id + "_2";
-            validSlot(s, input.instructor, start, 60, now);
+            validSlot(s, input.instructor, start, LESSON_MIN, now);
             check(
               !Object.values(s.bookings).some(
                 (x) =>
                   x.student === actor.uid &&
                   active(x) &&
                   start < end(x) &&
-                  start + HOUR > x.start,
+                  start + LESSON_MIN * 60000 > x.start,
               ),
               "Você já possui uma aula neste horário.",
             );
@@ -545,7 +557,7 @@ function execute(
               student: actor.uid,
               instructor: input.instructor,
               start,
-              duration: 60,
+              duration: LESSON_MIN,
               price: u.price,
               commission: Math.round((u.price * 3) / 100),
               status: "solicitado",
@@ -614,6 +626,8 @@ function execute(
               status: "confirmado",
               paidAt: now,
             });
+            // O código nasce com o pagamento; a validação continua restrita à janela de início.
+            if (lesson.startCodeRequired) issueStartCode(lesson);
             if (lesson.id !== b.id) extraNotificationBookings.push(lesson.id);
           }
           break;
@@ -676,14 +690,16 @@ function execute(
               ),
               "Aluno já possui aula no novo horário.",
             );
-            delete b.startConfirmation;
             b.previousStart = b.start;
             b.start = b.proposal.start;
+            // Novo horário invalida o código anterior.
+            delete b.startConfirmation;
+            if (b.startCodeRequired) issueStartCode(b);
           }
           b.proposal = null;
           break;
         case "complete":
-          instructor();
+          ownLesson();
           check(
             b.status === "confirmado" && b.paid && now >= end(b),
             "Conclua somente após o término e o pagamento.",
@@ -797,19 +813,29 @@ function execute(
           check(text(input.reason).length >= 5, "Registre a decisão.");
           if (t.booking) {
             const booking = s.bookings[t.booking];
+            // Estorno já concluído é histórico financeiro: a nova decisão só pode mantê-lo ou ampliá-lo.
+            const settled =
+              booking.refundStatus === "concluido_simulado"
+                ? booking.refund || 0
+                : 0;
             check(
               Number.isInteger(input.refund) &&
-                input.refund >= 0 &&
+                input.refund >= settled &&
                 input.refund <= booking.price,
-              "Estorno inválido.",
+              settled
+                ? "Já existe estorno concluído nesta aula; informe valor igual ou maior."
+                : "Estorno inválido.",
             );
             Object.assign(booking, {
               disputeOpen: false,
               payoutEligible: false,
               refund: input.refund,
-              refundStatus: input.refund
-                ? "pendente_simulado"
-                : "nao_aplicavel",
+              refundStatus:
+                input.refund > settled
+                  ? "pendente_simulado"
+                  : settled
+                    ? "concluido_simulado"
+                    : "nao_aplicavel",
             });
           }
           Object.assign(t, {
@@ -969,4 +995,14 @@ function execute(
     write: true,
   };
 }
-module.exports = { execute, empty, slots, validSlot, approved, end, HOUR, DAY };
+module.exports = {
+  execute,
+  empty,
+  slots,
+  validSlot,
+  approved,
+  end,
+  HOUR,
+  DAY,
+  LESSON_MIN,
+};

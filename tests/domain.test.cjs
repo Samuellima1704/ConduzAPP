@@ -196,9 +196,9 @@ test("múltiplos períodos e validação de sobreposição", () => {
     /sobrepostos/,
   );
 });
-test("novas reservas têm 60 minutos, hora cheia, sete dias e valores imutáveis", () => {
+test("novas reservas têm 50 minutos, hora cheia, sete dias e valores imutáveis", () => {
   const s = booked();
-  assert.equal(s.bookings.b1.duration, 60);
+  assert.equal(s.bookings.b1.duration, 50);
   assert.equal(s.bookings.b1.price, 9999);
   assert.equal(s.bookings.b1.commission, 300);
   s.users.teacher.price = 12000;
@@ -530,7 +530,7 @@ test("falta registrada mantém contestação até o limite de 24h, sem movimenta
         participant,
         "dispute",
         { booking: "b1", reason: "Discordo da ocorrência" },
-        start + 25 * HOUR,
+        start + 24 * HOUR + 50 * 60000,
         "contestacao",
       );
       assert.equal(s.bookings.b1.disputeOpen, true);
@@ -587,7 +587,7 @@ test("falta registrada mantém contestação até o limite de 24h, sem movimenta
           actor,
           "dispute",
           { booking: "b1", reason: "Fora do prazo" },
-          start + 25 * HOUR + 1,
+          start + 24 * HOUR + 50 * 60000 + 1,
         ),
       /24h/,
     );

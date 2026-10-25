@@ -75,7 +75,7 @@ function demoFixture(now, scope, identities = {}) {
     student,
     instructor,
     start,
-    duration: 60,
+    duration: 50,
     price: 8500,
     commission: 255,
     status: "confirmado",

@@ -9,6 +9,20 @@ const hash = (salt, value) =>
   createHash("sha256")
     .update(salt + ":" + value)
     .digest("hex");
+// Gerado no pagamento com status "aguardando"; só vira "disponivel" no horário de início.
+function issueStartCode(b) {
+  const salt = randomBytes(16).toString("hex"),
+    secret = String(randomInt(10000000, 100000000));
+  b.startConfirmation = {
+    status: "aguardando",
+    salt,
+    hash: hash(salt, secret),
+    secret,
+    attempts: 0,
+    availableAt: b.start,
+    expiresAt: b.start + 10 * 60000,
+  };
+}
 function updateStarts(state, now) {
   let changed = false;
   for (const b of Object.values(state.bookings)) {
@@ -20,18 +34,14 @@ function updateStarts(state, now) {
     )
       continue;
     const deadline = b.start + 10 * 60000;
-    if (!b.startConfirmation) {
-      const salt = randomBytes(16).toString("hex"),
-        secret = String(randomInt(10000000, 100000000));
-      b.startConfirmation = {
+    // Reservas pagas antes da geração no pagamento recebem o código no início.
+    if (!b.startConfirmation) issueStartCode(b);
+    if (b.startConfirmation.status === "aguardando") {
+      Object.assign(b.startConfirmation, {
         status: now <= deadline ? "disponivel" : "expirado",
-        salt,
-        hash: hash(salt, secret),
-        secret,
-        attempts: 0,
         availableAt: b.start,
         expiresAt: deadline,
-      };
+      });
       changed = true;
       for (const recipient of [b.student, b.instructor]) {
         const id = b.id + "_start_" + recipient;
@@ -69,8 +79,7 @@ function projectBooking(b, actor, now) {
     out.startConfirmation = { ...publicFields };
     if (
       actor.uid === b.student &&
-      publicFields.status === "disponivel" &&
-      now >= b.start &&
+      ["aguardando", "disponivel"].includes(publicFields.status) &&
       now <= publicFields.expiresAt
     )
       out.startConfirmation.code = secret;
@@ -136,4 +145,10 @@ function setDemoClock(s, actor, input, now, trusted) {
   s.demo.clockBy = actor.uid;
   s.demo.clockUpdatedAt = trusted.realNow;
 }
-module.exports = { updateStarts, projectBooking, confirmStart, setDemoClock };
+module.exports = {
+  issueStartCode,
+  updateStarts,
+  projectBooking,
+  confirmStart,
+  setDemoClock,
+};

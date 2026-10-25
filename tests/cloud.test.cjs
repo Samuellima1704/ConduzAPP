@@ -153,7 +153,8 @@ test("relógio de ensaio online exige confiança do servidor, administrador e ce
   assert.ok(changed.demo.clockOffset < 0);
   assert.equal(
     effectiveNow(changed, { stateScope: scope }, now, true),
-    changed.bookings[booking].start + HOUR,
+    changed.bookings[booking].start +
+      changed.bookings[booking].duration * 60000,
   );
   assert.equal(effectiveNow(changed, { stateScope: scope }, now, false), now);
   assert.equal(

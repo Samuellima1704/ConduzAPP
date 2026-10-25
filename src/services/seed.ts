@@ -1,4 +1,4 @@
-export const DURACAO_AULA_MIN = 60;
+export const DURACAO_AULA_MIN = 50;
 
 export const FOCOS_AULA = [
   'Treino de Baliza e Rampa',

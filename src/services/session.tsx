@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -166,16 +167,21 @@ export function Session({ children }: { children: ReactNode }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  // seq: só a resposta da chamada mais recente atualiza a tela (polling não sobrescreve ação nova).
+  // inFlight: trava síncrona contra toque duplo, antes de o estado `busy` renderizar.
+  const seq = useRef(0),
+    inFlight = useRef(false);
   async function refresh() {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
+    const mine = ++seq.current;
     try {
       const r = await invoke({ op: "state", input: {} });
-      if (auth.currentUser?.uid !== uid) return;
+      if (auth.currentUser?.uid !== uid || mine !== seq.current) return;
       setState(r.data);
       setError("");
     } catch {
-      if (auth.currentUser?.uid !== uid) return;
+      if (auth.currentUser?.uid !== uid || mine !== seq.current) return;
       setError(
         cloudDemo
           ? "Não foi possível acessar a demonstração online. Confira a conexão e se sua conta foi habilitada pelo responsável."
@@ -204,16 +210,18 @@ export function Session({ children }: { children: ReactNode }) {
     return () => clearInterval(timer);
   }, [user, busy]);
   async function run(op: string, input: unknown = {}) {
-    if (busy) return false;
+    if (inFlight.current) return false;
     const uid = auth.currentUser?.uid;
     if (!uid) return false;
+    inFlight.current = true;
+    const mine = ++seq.current;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const r = await invoke({ op, input });
       if (auth.currentUser?.uid !== uid) return false;
-      setState(r.data);
+      if (mine === seq.current) setState(r.data);
       setNotice(op === "readMessages" ? "" : "Alteração salva.");
       if (r.data.operationError) {
         setNotice("");
@@ -226,6 +234,7 @@ export function Session({ children }: { children: ReactNode }) {
       setError(e instanceof Error ? e.message : "Não foi possível salvar.");
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

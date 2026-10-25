@@ -67,7 +67,7 @@ async function seed() {
     student: "demo-aluno",
     instructor: "demo-instrutor",
     start,
-    duration: 60,
+    duration: 50,
     price: 8500,
     commission: 255,
     status: "confirmado",

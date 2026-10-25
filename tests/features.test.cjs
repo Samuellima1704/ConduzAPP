@@ -242,17 +242,26 @@ module.exports = {
   admin,
   ux,
 };
-test("código nasce no horário do servidor e só o aluno recebe o segredo", () => {
+test("código nasce no pagamento, só o aluno recebe o segredo e a validação abre no início", () => {
   let s = paid(),
     time = now + DAY;
+  const early = execute(s, student, "state", {}, time - 1).result.bookings
+    .operation.startConfirmation;
+  assert.equal(early.status, "aguardando");
+  assert.ok(/^\d{8}$/.test(early.code));
   assert.equal(
-    execute(s, student, "state", {}, time - 1).result.bookings.operation
-      .startConfirmation,
+    execute(s, teacher, "state", {}, time - 1).result.bookings.operation
+      .startConfirmation.code,
     undefined,
+  );
+  assert.equal(
+    Object.values(s.notifications).filter((n) => n.event === "start").length,
+    0,
   );
   let r = execute(s, student, "state", {}, time);
   const c = r.result.bookings.operation.startConfirmation;
-  assert.ok(/^\d{8}$/.test(c.code));
+  assert.equal(c.status, "disponivel");
+  assert.equal(c.code, early.code);
   assert.equal(r.write, true);
   s = r.state;
   for (const a of [teacher, admin]) {
@@ -278,7 +287,7 @@ test("início correto inclusive no décimo minuto; confirmação é idempotente 
   const code = r.result.bookings.operation.startConfirmation.code;
   assert.throws(
     () => act(s, student, "confirmStart", { booking: "operation", code }, time),
-    /Instrutor/,
+    /instrutor/,
   );
   assert.throws(
     () =>
@@ -480,7 +489,7 @@ test("relógio controlado exige cenário demo, administrador e emulador; payload
     now,
   );
 });
-test("duas aulas consecutivas são duas reservas de 60min com valor congelado e comissão individual", () => {
+test("duas aulas consecutivas são duas reservas de 50min com valor congelado e comissão individual", () => {
   const s = act(
     fixture(),
     student,
@@ -494,7 +503,7 @@ test("duas aulas consecutivas são duas reservas de 60min com valor congelado e 
   assert.equal(lessons[1].start, lessons[0].start + HOUR);
   assert.ok(
     lessons.every(
-      (b) => b.duration === 60 && b.price === 8500 && b.groupId === "group",
+      (b) => b.duration === 50 && b.price === 8500 && b.groupId === "group",
     ),
   );
   assert.equal(
@@ -779,4 +788,121 @@ test("ViaCEP preenche dados disponíveis e falhas preservam a alternativa manual
       }),
     /manualmente/,
   );
+});
+
+// Correções da auditoria de 10/2026 e regras alinhadas para a apresentação.
+test("aula de 50 min: término, slots em hora cheia e segunda aula após intervalo de 10 min", () => {
+  const { LESSON_MIN, slots } = require("../functions/domain");
+  assert.equal(LESSON_MIN, 50);
+  let s = paid();
+  const b = s.bookings.operation;
+  assert.equal(b.duration, 50);
+  assert.throws(
+    () => act(s, teacher, "complete", { booking: "operation" }, b.start + 49 * 60000),
+    /término/,
+  );
+  s = act(s, teacher, "complete", { booking: "operation" }, b.start + 50 * 60000);
+  assert.equal(s.bookings.operation.status, "concluido");
+  assert.ok(slots(fixture(), "t", now).every((t) => t % HOUR === 0));
+  const group = act(
+    fixture(),
+    student,
+    "book",
+    { instructor: "t", start: now + DAY, lessonCount: 2 },
+    now,
+    "g",
+  );
+  assert.equal(group.bookings.g_2.start - (group.bookings.g.start + 50 * 60000), 10 * 60000);
+});
+test("instrutor suspenso ou com credencial em renovação ainda confirma início e conclui aula paga", () => {
+  for (const change of [
+    (s) => act(s, admin, "suspend", { instructor: "t", reason: "Ocorrência fictícia" }),
+    (s) => act(s, teacher, "credential", { credential: "RENOVADA", expires: now + 60 * DAY }),
+  ]) {
+    let s = change(paid());
+    const time = now + DAY;
+    assert.throws(
+      () => act(s, teacher, "accept", { booking: "operation" }, time),
+      /autorização/,
+    );
+    const r = execute(s, student, "state", {}, time);
+    s = act(
+      r.state,
+      teacher,
+      "confirmStart",
+      { booking: "operation", code: r.result.bookings.operation.startConfirmation.code },
+      time,
+    );
+    assert.equal(s.bookings.operation.startConfirmation.status, "confirmado");
+    s = act(s, teacher, "complete", { booking: "operation" }, time + 50 * 60000);
+    assert.equal(s.bookings.operation.status, "concluido");
+    assert.throws(
+      () => act(s, { uid: "o" }, "complete", { booking: "operation" }, time + HOUR),
+      /participa/,
+    );
+  }
+});
+test("nova disputa não apaga estorno concluído; só mantém ou amplia o valor", () => {
+  const time = now + DAY + HOUR;
+  let s = act(paid(), teacher, "complete", { booking: "operation" }, time);
+  s = act(s, student, "dispute", { booking: "operation", reason: "Aula incompleta" }, time, "d1");
+  s = act(s, admin, "resolve", { ticket: "d1", reason: "Estorno parcial", refund: 3000 }, time);
+  s = act(s, admin, "refund", { booking: "operation" }, time);
+  assert.equal(s.bookings.operation.refundStatus, "concluido_simulado");
+  s = act(s, student, "dispute", { booking: "operation", reason: "Nova contestação" }, time + 1, "d2");
+  assert.throws(
+    () => act(s, admin, "resolve", { ticket: "d2", reason: "Sem estorno", refund: 0 }, time + 1),
+    /estorno concluído/,
+  );
+  const kept = act(s, admin, "resolve", { ticket: "d2", reason: "Mantido", refund: 3000 }, time + 1);
+  assert.equal(kept.bookings.operation.refund, 3000);
+  assert.equal(kept.bookings.operation.refundStatus, "concluido_simulado");
+  const more = act(s, admin, "resolve", { ticket: "d2", reason: "Ampliado", refund: 5000 }, time + 1);
+  assert.equal(more.bookings.operation.refund, 5000);
+  assert.equal(more.bookings.operation.refundStatus, "pendente_simulado");
+});
+test("código gerado no pagamento não valida antes do início e é renovado na remarcação", () => {
+  let s = paid();
+  const before = execute(s, student, "state", {}, now).result.bookings.operation
+    .startConfirmation.code;
+  assert.throws(
+    () => act(s, teacher, "confirmStart", { booking: "operation", code: before }, now + DAY - 1),
+    /dez minutos/,
+  );
+  s = act(s, teacher, "propose", { booking: "operation", start: now + DAY + 2 * HOUR });
+  s = act(s, student, "reschedule", { booking: "operation", accept: true });
+  const c = s.bookings.operation.startConfirmation;
+  assert.equal(c.status, "aguardando");
+  assert.equal(c.availableAt, now + DAY + 2 * HOUR);
+  const after = execute(s, student, "state", {}, now).result.bookings.operation
+    .startConfirmation.code;
+  assert.ok(/^\d{8}$/.test(after));
+  assert.notEqual(c.hash, undefined);
+});
+test("dashboard do instrutor resume agenda, histórico e valores líquidos simulados", () => {
+  const base = { instructor: "t", paid: true, duration: 50, price: 10000, commission: 300 };
+  const list = [
+    { ...base, id: "hoje", status: "confirmado", start: now + 2 * HOUR },
+    { ...base, id: "semana", status: "confirmado", start: now + 3 * DAY },
+    { ...base, id: "longe", status: "confirmado", start: now + 8 * DAY },
+    { ...base, id: "pendente", status: "solicitado", paid: false, start: now + DAY },
+    { ...base, id: "pagar", status: "aguardando_pagamento", paid: false, start: now + DAY },
+    { ...base, id: "terminou", status: "confirmado", start: now - 2 * HOUR },
+    { ...base, id: "ok", status: "concluido", start: now - DAY },
+    { ...base, id: "estorno", status: "concluido", start: now - 2 * DAY, refund: 2000 },
+    { ...base, id: "cancelada", status: "cancelado", start: now - 3 * DAY },
+    { ...base, id: "outro", instructor: "x", status: "concluido", start: now - DAY },
+  ];
+  const d = ux.instructorDashboard(list, "t", now);
+  assert.equal(d.today, 1);
+  assert.equal(d.week, 2);
+  assert.equal(d.requests, 1);
+  assert.equal(d.awaitingPayment, 1);
+  assert.equal(d.toComplete, 1);
+  assert.equal(d.completed, 2);
+  assert.equal(d.hours, 100 / 60);
+  assert.equal(d.earned, 9700 + 7700);
+  assert.equal(d.forecast, 3 * 9700);
+  assert.deepEqual(d.upcoming.map((b) => b.id), ["hoje", "semana", "longe"]);
+  assert.deepEqual(d.history.map((b) => b.id), ["ok", "estorno", "cancelada"]);
 });

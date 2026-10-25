@@ -489,7 +489,7 @@ test("duas aulas: aceite e pagamento simulado conjunto preservam acompanhamento 
     assert.ok((await call("instrutor", "accept", { booking: b.id })).result);
   r = await call("aluno", "pay", { booking: lessons[0].id });
   assert.ok(
-    Object.values(r.result.bookings).every((b) => b.paid && b.duration === 60),
+    Object.values(r.result.bookings).every((b) => b.paid && b.duration === 50),
   );
   r = await call("aluno", "cancel", { booking: lessons[0].id });
   assert.equal(r.result.bookings[lessons[0].id].refund, 8500);
@@ -574,7 +574,7 @@ test("duas reservas concorrentes: exatamente uma é aceita na transação", asyn
   const state = (await stateRef.get()).data();
   assert.equal(Object.keys(state.bookings).length, 1);
   const b = Object.values(state.bookings)[0];
-  assert.equal(b.duration, 60);
+  assert.equal(b.duration, 50);
   assert.equal(b.price, 8500);
   assert.equal(b.commission, 255);
 });

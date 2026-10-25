@@ -133,6 +133,8 @@ export const panelStyles = StyleSheet.create({
   },
   action: { paddingHorizontal: 16, paddingVertical: 10, minHeight: 44 },
   metric: { flex: 1, minWidth: 130, gap: 8 },
+  // Grade do dashboard do instrutor: 3 colunas no desktop, 2 no celular.
+  dashboardMetric: { flexGrow: 1, flexBasis: "30%", minWidth: 140, gap: 8 },
   number: { fontSize: 30, lineHeight: 38, color: c.primary, fontWeight: "800" },
   badge: {
     fontSize: 12,

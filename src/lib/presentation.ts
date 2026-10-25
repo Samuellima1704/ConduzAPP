@@ -150,3 +150,59 @@ export function instructorList<
         .includes(query.trim().toLowerCase()),
   );
 }
+type DashboardBooking = {
+  id: string;
+  instructor: string;
+  status: string;
+  paid: boolean;
+  start: number;
+  duration: number;
+  price: number;
+  commission: number;
+  refund?: number;
+};
+const brasiliaDay = (ms: number) =>
+  new Date(ms - 3 * 3600000).toISOString().slice(0, 10);
+// Métricas do painel do instrutor; valores em centavos e sempre simulados.
+export function instructorDashboard<T extends DashboardBooking>(
+  bookings: T[],
+  uid: string,
+  now: number,
+) {
+  const mine = bookings.filter((b) => b.instructor === uid);
+  const end = (b: T) => b.start + b.duration * 60000;
+  const net = (b: T) => b.price - b.commission;
+  const upcoming = mine
+    .filter((b) => b.status === "confirmado" && end(b) > now)
+    .sort((a, b) => a.start - b.start);
+  const completed = mine.filter((b) => b.status === "concluido" && b.paid);
+  const finished = [
+    "concluido",
+    "cancelado",
+    "falta_aluno",
+    "falta_instrutor",
+  ];
+  return {
+    today: upcoming.filter((b) => brasiliaDay(b.start) === brasiliaDay(now))
+      .length,
+    week: upcoming.filter((b) => b.start < now + 7 * 86400000).length,
+    requests: mine.filter((b) => b.status === "solicitado").length,
+    awaitingPayment: mine.filter((b) => b.status === "aguardando_pagamento")
+      .length,
+    toComplete: mine.filter(
+      (b) => b.status === "confirmado" && b.paid && end(b) <= now,
+    ).length,
+    completed: completed.length,
+    hours: completed.reduce((n, b) => n + b.duration, 0) / 60,
+    earned: completed.reduce(
+      (n, b) => n + Math.max(0, net(b) - (b.refund || 0)),
+      0,
+    ),
+    forecast: upcoming.filter((b) => b.paid).reduce((n, b) => n + net(b), 0),
+    upcoming,
+    history: mine
+      .filter((b) => finished.includes(b.status) && b.start <= now)
+      .sort((a, b) => b.start - a.start)
+      .slice(0, 5),
+  };
+}

@@ -53,6 +53,7 @@ export function StartConfirmation({ booking: b }: { booking: Booking }) {
         Situação:{" "}
         {(
           {
+            aguardando: "Código gerado · validação a partir do início",
             disponivel: "Disponível",
             confirmado: "Confirmado",
             expirado: "Expirado",
