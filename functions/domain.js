@@ -18,6 +18,8 @@ const DAY = 24 * HOUR;
 // Aula padrão de 50 minutos iniciando em hora cheia; os 10 minutos restantes são intervalo.
 // Reservas antigas preservam a própria duração.
 const LESSON_MIN = 50;
+// Taxa de intermediação (take rate) do modelo de negócio, sobre cada aula; congelada na reserva.
+const COMMISSION_PERCENT = 12;
 const fail = (message) => {
   throw new Error(message);
 };
@@ -559,7 +561,7 @@ function execute(
               start,
               duration: LESSON_MIN,
               price: u.price,
-              commission: Math.round((u.price * 3) / 100),
+              commission: Math.round((u.price * COMMISSION_PERCENT) / 100),
               status: "solicitado",
               paid: false,
               paymentMode: "simulado",
@@ -1005,4 +1007,5 @@ module.exports = {
   HOUR,
   DAY,
   LESSON_MIN,
+  COMMISSION_PERCENT,
 };

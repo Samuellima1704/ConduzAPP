@@ -993,7 +993,7 @@ function InstructorHome({
           </View>
         </View>
         <Text style={s.small}>
-          Valores após a comissão de 3% e eventuais estornos. Nenhum valor real
+          Valores após a taxa de 12% da plataforma e eventuais estornos. Nenhum valor real
           é movimentado.
         </Text>
       </Card>

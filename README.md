@@ -46,7 +46,7 @@ Com os emuladores ativos:
 powershell -ExecutionPolicy Bypass -File .\scripts\Verificar.ps1
 ```
 
-Os testes de integração usam contas temporárias e documentos isolados por execução; não substituem a base usada pelo aplicativo. A verificação atual inclui **62 testes unitários, 27 integrações/autorização, TypeScript e build web**. As regras online são verificadas em projeto fictício separado; o vínculo auxiliar de aula recebe UUID exclusivo no projeto do emulador e é removido ao final. Resultado das implementações urgentes e limites do ensaio: [relatório](docs/IMPLEMENTACOES_URGENTES_TCC.md). Correção e comprovação de fotos reais após recarga/login: [fotos de perfil](docs/CORRECAO_FOTOS_PERFIL.md).
+Os testes de integração usam contas temporárias e documentos isolados por execução; não substituem a base usada pelo aplicativo. A verificação atual inclui **67 testes unitários, 27 integrações/autorização, TypeScript e build web**. As regras online são verificadas em projeto fictício separado; o vínculo auxiliar de aula recebe UUID exclusivo no projeto do emulador e é removido ao final. Resultado das implementações urgentes e limites do ensaio: [relatório](docs/IMPLEMENTACOES_URGENTES_TCC.md). Correção e comprovação de fotos reais após recarga/login: [fotos de perfil](docs/CORRECAO_FOTOS_PERFIL.md).
 
 Com Node 22 e npm no PATH também é possível executar `npm test`, `npm run typecheck`, `npm run test:emulators` e `npm run build:web`.
 
@@ -64,7 +64,7 @@ Com Node 22 e npm no PATH também é possível executar `npm test`, `npm run typ
 
 O backend usa um documento agregado privado e transações para serializar as mutações desta demonstração pequena. Há limites de quantidade/tamanho. Esta estrutura prioriza recuperação e verificabilidade local; exige migração para coleções particionadas antes de escalar para produção. Os campos de acesso às fotos são espelhados pelo servidor. Não há migração de dados reais ou leitura do Firebase antigo.
 
-Preço em centavos, comissão arredondada no backend, horário de Brasília (UTC−03), novas aulas de 60 minutos. Reservas antigas mantêm valor e duração. Remarcação não altera a reserva até aceite e revalida conflitos.
+Preço em centavos, taxa de 12% arredondada no backend, horário de Brasília (UTC−03), novas aulas de 50 minutos em hora cheia. Reservas antigas mantêm valor e duração. Remarcação não altera a reserva até aceite e revalida conflitos.
 
 ## Restrições
 

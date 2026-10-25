@@ -200,7 +200,7 @@ test("novas reservas têm 50 minutos, hora cheia, sete dias e valores imutáveis
   const s = booked();
   assert.equal(s.bookings.b1.duration, 50);
   assert.equal(s.bookings.b1.price, 9999);
-  assert.equal(s.bookings.b1.commission, 300);
+  assert.equal(s.bookings.b1.commission, 1200);
   s.users.teacher.price = 12000;
   assert.equal(s.bookings.b1.price, 9999);
   assert.throws(

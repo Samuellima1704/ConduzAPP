@@ -512,7 +512,7 @@ test("duas aulas consecutivas são duas reservas de 50min com valor congelado e 
   );
   assert.equal(
     lessons.reduce((n, b) => n + b.commission, 0),
-    510,
+    2040,
   );
 });
 test("segunda aula indisponível não deixa metade da solicitação gravada; horários separados recusados", () => {
@@ -880,7 +880,7 @@ test("código gerado no pagamento não valida antes do início e é renovado na 
   assert.notEqual(c.hash, undefined);
 });
 test("dashboard do instrutor resume agenda, histórico e valores líquidos simulados", () => {
-  const base = { instructor: "t", paid: true, duration: 50, price: 10000, commission: 300 };
+  const base = { instructor: "t", paid: true, duration: 50, price: 10000, commission: 1200 };
   const list = [
     { ...base, id: "hoje", status: "confirmado", start: now + 2 * HOUR },
     { ...base, id: "semana", status: "confirmado", start: now + 3 * DAY },
@@ -901,8 +901,8 @@ test("dashboard do instrutor resume agenda, histórico e valores líquidos simul
   assert.equal(d.toComplete, 1);
   assert.equal(d.completed, 2);
   assert.equal(d.hours, 100 / 60);
-  assert.equal(d.earned, 9700 + 7700);
-  assert.equal(d.forecast, 3 * 9700);
+  assert.equal(d.earned, 8800 + 6800);
+  assert.equal(d.forecast, 3 * 8800);
   assert.deepEqual(d.upcoming.map((b) => b.id), ["hoje", "semana", "longe"]);
   assert.deepEqual(d.history.map((b) => b.id), ["ok", "estorno", "cancelada"]);
 });

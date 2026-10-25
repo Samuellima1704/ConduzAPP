@@ -77,7 +77,7 @@ function demoFixture(now, scope, identities = {}) {
     start,
     duration: 50,
     price: 8500,
-    commission: 255,
+    commission: 1020,
     status: "confirmado",
     paid: true,
     paymentMode: "simulado",

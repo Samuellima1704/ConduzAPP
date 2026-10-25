@@ -576,7 +576,7 @@ test("duas reservas concorrentes: exatamente uma é aceita na transação", asyn
   const b = Object.values(state.bookings)[0];
   assert.equal(b.duration, 50);
   assert.equal(b.price, 8500);
-  assert.equal(b.commission, 255);
+  assert.equal(b.commission, 1020);
 });
 test("fluxo integrado: solicitar → aceitar → simular pagamento, com privacidade", async () => {
   let r = await call("aluno", "book", {
