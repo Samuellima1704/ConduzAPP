@@ -464,7 +464,7 @@ test("relógio controlado exige cenário demo, administrador e emulador; payload
         { booking: "operation", stage: "start" },
         now,
         "clock",
-        { ...trusted, demoScope: "test-clock" },
+        { emulator: false, cloudDemo: true, demoScope: "test-clock", realNow: now },
       ),
     /exclusivo/,
   );
@@ -905,4 +905,21 @@ test("dashboard do instrutor resume agenda, histórico e valores líquidos simul
   assert.equal(d.forecast, 3 * 8800);
   assert.deepEqual(d.upcoming.map((b) => b.id), ["hoje", "semana", "longe"]);
   assert.deepEqual(d.history.map((b) => b.id), ["ok", "estorno", "cancelada"]);
+});
+test("base real local: só o admin ajusta o relógio de ensaio, e o ajuste vale apenas no ambiente local", () => {
+  const { effectiveNow } = require("../functions/state-scope");
+  const trusted = { emulator: true, demoScope: "state", realNow: now };
+  let s = act(fixture(), student, "book", { instructor: "t", start: now + DAY });
+  assert.equal(s.demo, undefined);
+  assert.throws(
+    () => act(s, student, "setDemoClock", { booking: "operation", stage: "start" }, now, "clock", trusted),
+    /administrador/,
+  );
+  s = act(s, admin, "setDemoClock", { booking: "operation", stage: "start" }, now, "clock", trusted);
+  assert.equal(s.demo.scope, "state");
+  assert.equal(effectiveNow(s, {}, now, true, true), now + DAY);
+  assert.equal(effectiveNow(s, {}, now, true, false), now);
+  assert.equal(effectiveNow(s, { stateScope: "test-outro" }, now, true, true), now);
+  s = act(s, admin, "setDemoClock", { stage: "reset" }, now, "clock", trusted);
+  assert.equal(effectiveNow(s, {}, now, true, true), now);
 });

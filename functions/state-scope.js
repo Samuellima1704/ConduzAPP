@@ -12,11 +12,16 @@ function effectiveNow(
   token,
   realNow,
   demoClockAllowed = process.env.FUNCTIONS_EMULATOR === "true",
+  local = false,
 ) {
   const scope = token?.stateScope;
+  // No ambiente local o relógio de ensaio vale também para a base real (private/state).
+  const scopeAllowed = local
+    ? state.demo?.scope === (scope ?? "state")
+    : /^demo-[a-zA-Z0-9-]{1,80}$/.test(scope || "") &&
+      state.demo?.scope === scope;
   return demoClockAllowed &&
-    /^demo-[a-zA-Z0-9-]{1,80}$/.test(scope || "") &&
-    state.demo?.scope === scope &&
+    scopeAllowed &&
     Number.isFinite(state.demo.clockOffset) &&
     Math.abs(state.demo.clockOffset) <= 7 * 86400000
     ? realNow + state.demo.clockOffset

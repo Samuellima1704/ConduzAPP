@@ -69,7 +69,13 @@ exports.conduz = onCall(
           actor,
           op,
           input,
-          effectiveNow(state, request.auth.token, realNow, true),
+          effectiveNow(
+            state,
+            request.auth.token,
+            realNow,
+            true,
+            runtime.emulator,
+          ),
           id,
           {
             ...trusted,

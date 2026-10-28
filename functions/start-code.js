@@ -118,15 +118,18 @@ function confirmStart(b, actor, input, now) {
   return null;
 }
 function setDemoClock(s, actor, input, now, trusted) {
-  if (
-    !actor.admin ||
-    (!trusted.emulator && !trusted.cloudDemo) ||
-    !trusted.demoScope?.startsWith("demo-") ||
-    s.demo?.scope !== trusted.demoScope
-  )
+  // Local (emuladores): o administrador ensaia em qualquer base, inclusive a real persistida.
+  // Online: somente em cenário isolado demo-*, preparado pelo responsável.
+  const local = trusted.emulator === true && !!trusted.demoScope;
+  const cloudScenario =
+    trusted.cloudDemo === true &&
+    !!trusted.demoScope?.startsWith("demo-") &&
+    s.demo?.scope === trusted.demoScope;
+  if (!actor.admin || !(local || cloudScenario))
     throw Error(
-      "Relógio controlado exclusivo de cenário de demonstração e administrador autorizado.",
+      "Relógio de ensaio exclusivo do administrador no ambiente local ou em cenário de demonstração.",
     );
+  if (local) s.demo = { ...s.demo, scope: trusted.demoScope };
   let target = trusted.realNow;
   if (input.stage !== "reset") {
     const b = s.bookings[input.booking];

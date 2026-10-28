@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Image } from "expo-image";
 import { UI } from "@/constants/theme";
-import { Icon } from "@/components/ui/icon";
 import { authFields, authMessage } from "@/lib/presentation";
 export function AuthScreen({
   signup = false,
@@ -34,7 +33,6 @@ export function AuthScreen({
     [credential, setCredential] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  const [showDemo, setShowDemo] = useState(false);
   async function submit() {
     if (cloudDemo && signup) {
       setError(
@@ -70,10 +68,6 @@ export function AuthScreen({
     } finally {
       setBusy(false);
     }
-  }
-  async function demo(account: string) {
-    setEmail(`${account}@conduzapp.test`);
-    setPassword("DemoTCC2026!");
   }
   return (
     <SafeAreaView style={s.page}>
@@ -216,53 +210,9 @@ export function AuthScreen({
               />
             )}
           </Card>
-          {!signup && !cloudDemo && (
-            <View style={s.demo}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityState={{ expanded: showDemo }}
-                style={s.demoToggle}
-                onPress={() => setShowDemo(!showDemo)}
-              >
-                <Icon name="shield" size={18} />
-                <View style={s.flex}>
-                  <Text style={s.section}>Acessos de demonstração</Text>
-                  <Text style={s.caption}>
-                    Aluno, instrutor e administração
-                  </Text>
-                </View>
-                <Icon name="chevron" size={16} />
-              </TouchableOpacity>
-              {showDemo && (
-                <View style={s.demoContent}>
-                  <Text style={s.subtitle}>
-                    Contas fictícias. Escolha um perfil e toque em Entrar. Os
-                    emuladores devem estar preparados.
-                  </Text>
-                  <View style={s.row}>
-                    {["aluno", "instrutor", "admin"].map((account) => (
-                      <View style={s.flex} key={account}>
-                        <Button
-                          title={
-                            account === "admin"
-                              ? "Admin"
-                              : account === "aluno"
-                                ? "Aluno"
-                                : "Instrutor"
-                          }
-                          variant="secondary"
-                          onPress={() => demo(account)}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
+          {/* Sem atalhos de contas fictícias: todo acesso é por cadastro real no Firebase Auth. */}
           <Text style={s.foot}>
-            DEMONSTRAÇÃO {cloudDemo ? "ONLINE" : "LOCAL"} · TCC 2026{"\n"}
-            Pagamentos e estornos exclusivamente simulados.
+            ConduzAPP · Sistemas de Informação · UniFOA 2026
           </Text>
         </View>
       </ScrollView>
@@ -310,11 +260,7 @@ const s = StyleSheet.create({
     fontSize: UI.type.body,
     lineHeight: 21,
   },
-  caption: { color: UI.color.textSecondary, fontSize: 12 },
   error: { color: UI.color.dangerText },
-  row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  flex: { flex: 1 },
-  section: { fontWeight: "700", fontSize: 13 },
   foot: {
     color: UI.color.textSecondary,
     fontSize: 11,
@@ -327,18 +273,4 @@ const s = StyleSheet.create({
   switchRole: { alignItems: "center", padding: 12 },
   divider: { flexDirection: "row", alignItems: "center", gap: 12 },
   line: { height: 1, backgroundColor: UI.color.border, flex: 1 },
-  demo: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: UI.color.border,
-    borderRadius: UI.radius.card,
-    backgroundColor: UI.color.surface,
-  },
-  demoToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-  },
-  demoContent: { padding: 16, paddingTop: 0, gap: 12 },
 });

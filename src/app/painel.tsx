@@ -206,7 +206,6 @@ export default function Painel() {
             <Text style={s.brand}>
               CONDUZ<Text style={s.brandAccent}> APP</Text>
             </Text>
-            <Text style={s.demoLabel}>DEMONSTRAÇÃO · PAGAMENTOS SIMULADOS</Text>
           </TouchableOpacity>
           <View style={s.headerActions}>
             <TouchableOpacity
@@ -246,8 +245,7 @@ export default function Painel() {
       {api.state?.demoClockActive && (
         <View style={s.notice}>
           <Text>
-            Relógio do ensaio ativo · {dateTime(api.state.now)} · dados
-            fictícios
+            Relógio de ensaio ativo (administração) · {dateTime(api.state.now)}
           </Text>
           {me.role === "admin" && (
             <Button
@@ -981,7 +979,7 @@ function InstructorHome({
         ))}
       </View>
       <Card style={s.gapSmall}>
-        <Text style={s.cardTitle}>Resumo financeiro simulado</Text>
+        <Text style={s.cardTitle}>Resumo financeiro</Text>
         <View style={s.row}>
           <View style={s.flex}>
             <Text style={s.price}>{money(d.earned)}</Text>
@@ -1380,7 +1378,7 @@ function BookingCard({
             )}
           {student && b.status === "aguardando_pagamento" && (
             <Button
-              title={"Confirmar pagamento SIMULADO · " + money(paymentTotal)}
+              title={"Confirmar pagamento (simulado) · " + money(paymentTotal)}
               onPress={() => run("pay", { booking: b.id })}
             />
           )}
@@ -1525,7 +1523,7 @@ function BookingCard({
               />
               {b.refundStatus === "pendente_simulado" && (
                 <Action
-                  title="Registrar estorno SIMULADO"
+                  title="Registrar estorno (simulado)"
                   onPress={() => run("refund", { booking: b.id })}
                 />
               )}
@@ -2340,7 +2338,7 @@ function Admin({ tab }: { tab: string }) {
       </View>
       <Heading
         title="Verificações de identidade"
-        sub="Comparação visual manual. Somente documentos fictícios; sem biometria ou serviço oficial."
+        sub="Comparação visual manual entre foto e documento; sem biometria nem consulta a serviço oficial."
       />
       {Object.values(state!.bookings)
         .filter(

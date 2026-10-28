@@ -1,6 +1,6 @@
 # ConduzAPP — recuperação do TCC
 
-Aplicativo Expo/React Native com três perfis, Firebase local e pagamentos simulados.
+Aplicativo Expo/React Native com três perfis, Firebase local com dados persistentes e pagamentos simulados no backend.
 
 Preparação do ambiente compartilhado online: [instruções e status](docs/AMBIENTE_ONLINE.md). O modo local continua padrão. A publicação online depende de projeto Firebase, faturamento e validação real; tornar o GitHub público não publica o banco nem o aplicativo.
 
@@ -20,23 +20,28 @@ As ferramentas portáteis ficam em `.tools`, sem alterar instalações do Window
 powershell -ExecutionPolicy Bypass -File .\scripts\Preparar-Ambiente.ps1
 ```
 
-## Contas fictícias
+## Dados persistentes
 
-| Perfil | E-mail | Senha de demonstração |
-|---|---|---|
-| Aluno | aluno@conduzapp.test | DemoTCC2026! |
-| Instrutor | instrutor@conduzapp.test | DemoTCC2026! |
-| Administração | admin@conduzapp.test | DemoTCC2026! |
+Não há contas nem base pré-carregadas: alunos e instrutores se cadastram pelo próprio app ("Criar conta"). Tudo o que os usuários fazem (contas, perfis, fotos, documentos, aulas, avaliações e mensagens) fica gravado nos emuladores do Firebase e é salvo em `.emulator-data`:
 
-O primeiro início prepara a base se ela não existir. Reinícios preservam a base existente. As credenciais acima pertencem exclusivamente aos emuladores.
-
-Para ensaiar e apresentar com datas novas, depois de iniciar os emuladores execute:
+- automaticamente, a cada 2 minutos, enquanto o app estiver rodando;
+- ao encerrar com o script abaixo, que salva antes de parar.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Preparar-Demonstracao.ps1
+powershell -ExecutionPolicy Bypass -File .\Parar-ConduzAPP.ps1
 ```
 
-Cada execução cria um cenário isolado, com agenda configurada e aula histórica paga ainda não concluída/avaliada. Não sobrescreve a base anterior. **Saia e entre novamente** nas três contas após preparar. Repita no dia 30/10, sem mudar o relógio do computador. Veja a sequência de conclusão histórica, chat e reserva no roteiro.
+No próximo `Iniciar-ConduzAPP.ps1` os dados são restaurados. A cópia anterior fica em `.emulator-data.prev`. Fechar a janela ou desligar o notebook sem o script perde no máximo os últimos 2 minutos. A pasta `.emulator-data` contém dados pessoais e fica fora do Git.
+
+### Conta de administração
+
+A permissão de administrador só pode ser concedida pelo Admin SDK, nunca pelo app. Crie a conta normalmente pelo app e, com o app rodando, promova-a:
+
+```powershell
+node scripts/tornar-admin.cjs email-da-conta@exemplo.com
+```
+
+Saia e entre novamente para aplicar. Use uma conta exclusiva para a administração. O admin aprova identidades e credenciais e tem um relógio de ensaio local, que permite demonstrar o início e o término de uma aula sem esperar o horário real.
 
 ## Verificar
 
@@ -46,7 +51,7 @@ Com os emuladores ativos:
 powershell -ExecutionPolicy Bypass -File .\scripts\Verificar.ps1
 ```
 
-Os testes de integração usam contas temporárias e documentos isolados por execução; não substituem a base usada pelo aplicativo. A verificação atual inclui **67 testes unitários, 27 integrações/autorização, TypeScript e build web**. As regras online são verificadas em projeto fictício separado; o vínculo auxiliar de aula recebe UUID exclusivo no projeto do emulador e é removido ao final. Resultado das implementações urgentes e limites do ensaio: [relatório](docs/IMPLEMENTACOES_URGENTES_TCC.md). Correção e comprovação de fotos reais após recarga/login: [fotos de perfil](docs/CORRECAO_FOTOS_PERFIL.md).
+Os testes de integração usam contas temporárias e documentos isolados por execução; não substituem a base usada pelo aplicativo. A verificação atual inclui **68 testes unitários, 27 integrações/autorização, TypeScript e build web**. As regras online são verificadas em projeto fictício separado; o vínculo auxiliar de aula recebe UUID exclusivo no projeto do emulador e é removido ao final. Resultado das implementações urgentes e limites do ensaio: [relatório](docs/IMPLEMENTACOES_URGENTES_TCC.md). Correção e comprovação de fotos reais após recarga/login: [fotos de perfil](docs/CORRECAO_FOTOS_PERFIL.md).
 
 Com Node 22 e npm no PATH também é possível executar `npm test`, `npm run typecheck`, `npm run test:emulators` e `npm run build:web`.
 

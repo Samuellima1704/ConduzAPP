@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { useSession, dateTime, type Booking } from "@/services/session";
+import { cloudDemo } from "@/services/firebase";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ThemedText as Text } from "./themed-text";
@@ -11,10 +12,12 @@ export function StartConfirmation({ booking: b }: { booking: Booking }) {
   const [code, setCode] = useState("");
   const c = b.startConfirmation;
   if (me.role === "admin")
-    return state?.demo ? (
+    // Relógio de ensaio: só o admin, no ambiente local ou em cenário online de demonstração.
+    return !cloudDemo || state?.demo ? (
       <View style={s.gap}>
         <Text style={s.small}>
-          Relógio exclusivo deste cenário fictício. Não altera o computador.
+          Relógio de ensaio da administração. Vale só para o servidor local e
+          não altera o relógio do computador.
         </Text>
         {(
           [

@@ -531,10 +531,12 @@ test("código de início é privado e tentativas inválidas persistem na transa�
     (await call("aluno", "setDemoClock", { booking: id, stage: "start" }))
       .error,
   );
+  // No ambiente local o administrador pode ensaiar o horário; o aluno nunca.
   assert.ok(
     (await call("admin", "setDemoClock", { booking: id, stage: "start" }))
-      .error,
+      .result,
   );
+  assert.ok((await call("admin", "setDemoClock", { stage: "reset" })).result);
 });
 test("código expirado não muda pagamento, falta ou cancelamento e bloqueia elegibilidade", async () => {
   let r = await call("aluno", "book", {

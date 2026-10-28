@@ -32,12 +32,6 @@ export const panelStyles = StyleSheet.create({
   },
   brand: { fontSize: 20, fontWeight: "800", color: "#fff", letterSpacing: 0.5 },
   brandAccent: { color: c.primaryLight, fontSize: 20, fontWeight: "700" },
-  demoLabel: {
-    color: "#DCE7FF",
-    fontSize: 8,
-    letterSpacing: 0.3,
-    lineHeight: 16,
-  },
   headerActions: { flexDirection: "row", gap: 2 },
   iconButton: {
     width: 40,

@@ -46,8 +46,7 @@
     "test:emulators": "node --test --test-concurrency=1 tests/emulators.test.cjs tests/cloud-rules.test.cjs",
     "build:web": "expo export --platform web",
     "emulators": "firebase emulators:start --project demo-conduzapp",
-    "seed:demo": "node scripts/seed-demo.cjs",
-    "prepare:demo": "node scripts/prepare-demo.cjs"
+    "admin": "node scripts/tornar-admin.cjs"
   },
   "private": true
 }

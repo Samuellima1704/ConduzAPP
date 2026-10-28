@@ -116,7 +116,7 @@ export function useImageUpload(document = false) {
         setAsset(null);
         setMessage(
           document
-            ? "Documento fictício enviado para análise manual."
+            ? "Documento enviado para análise manual."
             : "Foto atualizada e salva.",
         );
         console.info("[ConduzAPP imagem] referência persistida no perfil");
@@ -169,7 +169,7 @@ function UploadImage({
     <View style={s.gap}>
       <Button
         title={
-          document ? "Selecionar documento fictício" : "Escolher foto de perfil"
+          document ? "Selecionar documento" : "Escolher foto de perfil"
         }
         variant="secondary"
         onPress={choose}
@@ -191,7 +191,7 @@ function UploadImage({
           />
           <Button
             title={
-              document ? "Enviar documento fictício" : "Salvar foto de perfil"
+              document ? "Enviar documento" : "Salvar foto de perfil"
             }
             onPress={send}
             loading={sending}
@@ -230,8 +230,8 @@ export function IdentityPanel({
         {photoOnly ? "Foto de perfil" : "Foto e verificação de identidade"}
       </Text>
       <Text style={s.muted}>
-        Análise manual simulada. Use somente imagens e documentos fictícios no
-        TCC.
+        Envie uma foto do seu documento com foto. Ele fica privado: só você e a
+        administração podem vê-lo, e a análise é manual.
       </Text>
       <Text>Identidade: {identityStatusLabel(identity?.status)}</Text>
       <StoredImage
@@ -260,7 +260,7 @@ export function IdentityPanel({
       {!photoOnly && identity?.documentPath && (
         <StoredImage
           path={identity.documentPath}
-          label="Documento fictício privado enviado"
+          label="Documento privado enviado"
           style={{ width: "100%", height: 180, resizeMode: "contain" }}
         />
       )}
@@ -284,7 +284,7 @@ export function IdentityAdmin({ profile: u }: { profile: Profile }) {
     <Card style={s.gap}>
       <Text style={s.cardTitle}>Identidade · {u.name}</Text>
       <Text>
-        Análise visual manual e simulada · {identityStatusLabel(i.status)}
+        Análise visual manual · {identityStatusLabel(i.status)}
       </Text>
       <StoredImage
         path={i.photoPath}
@@ -293,7 +293,7 @@ export function IdentityAdmin({ profile: u }: { profile: Profile }) {
       />
       <StoredImage
         path={i.documentPath}
-        label="Documento fictício privado para análise"
+        label="Documento privado para análise"
         style={{ width: "100%", height: 210, resizeMode: "contain" }}
       />
       {i.submittedAt && <Text>{dateTime(i.submittedAt)}</Text>}
