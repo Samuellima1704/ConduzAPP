@@ -200,8 +200,9 @@ export function instructorDashboard<T extends DashboardBooking>(
     ),
     forecast: upcoming.filter((b) => b.paid).reduce((n, b) => n + net(b), 0),
     upcoming,
+    // Pelo status, não pela data: aula cancelada com antecedência também é histórico.
     history: mine
-      .filter((b) => finished.includes(b.status) && b.start <= now)
+      .filter((b) => finished.includes(b.status))
       .sort((a, b) => b.start - a.start)
       .slice(0, 5),
   };

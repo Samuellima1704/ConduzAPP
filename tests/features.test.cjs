@@ -890,7 +890,7 @@ test("dashboard do instrutor resume agenda, histórico e valores líquidos simul
     { ...base, id: "terminou", status: "confirmado", start: now - 2 * HOUR },
     { ...base, id: "ok", status: "concluido", start: now - DAY },
     { ...base, id: "estorno", status: "concluido", start: now - 2 * DAY, refund: 2000 },
-    { ...base, id: "cancelada", status: "cancelado", start: now - 3 * DAY },
+    { ...base, id: "cancelada", status: "cancelado", start: now - 3 * DAY }, { ...base, id: "cancelada-futura", status: "cancelado", start: now + 2 * DAY },
     { ...base, id: "outro", instructor: "x", status: "concluido", start: now - DAY },
   ];
   const d = ux.instructorDashboard(list, "t", now);
@@ -904,7 +904,7 @@ test("dashboard do instrutor resume agenda, histórico e valores líquidos simul
   assert.equal(d.earned, 8800 + 6800);
   assert.equal(d.forecast, 3 * 8800);
   assert.deepEqual(d.upcoming.map((b) => b.id), ["hoje", "semana", "longe"]);
-  assert.deepEqual(d.history.map((b) => b.id), ["ok", "estorno", "cancelada"]);
+  assert.deepEqual(d.history.map((b) => b.id), ["cancelada-futura", "ok", "estorno", "cancelada"]);
 });
 test("base real local: só o admin ajusta o relógio de ensaio, e o ajuste vale apenas no ambiente local", () => {
   const { effectiveNow } = require("../functions/state-scope");

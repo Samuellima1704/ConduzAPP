@@ -315,7 +315,7 @@ export function IdentityAdmin({ profile: u }: { profile: Profile }) {
               key={decision}
               title={
                 decision === "aprovado"
-                  ? "Aprovar identidade (simulação)"
+                  ? "Aprovar identidade"
                   : "Rejeitar identidade"
               }
               variant="secondary"

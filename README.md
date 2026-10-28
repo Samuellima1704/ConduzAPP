@@ -45,6 +45,13 @@ Saia e entre novamente para aplicar. Use uma conta exclusiva para a administraç
 
 ## Verificar
 
+Com o app rodando, o teste de ponta a ponta percorre cadastro, verificação, reserva, pagamento, código de início, conclusão, avaliações, disputa, remarcação, cancelamento, suspensão e suporte em um ambiente isolado, sem tocar na base real:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Testar-Tudo.ps1          # relatório em .tools\teste-e2e.txt
+powershell -ExecutionPolicy Bypass -File .\scripts\Testar-Tudo.ps1 -Limpar  # apaga as contas de teste
+```
+
 Com os emuladores ativos:
 
 ```powershell

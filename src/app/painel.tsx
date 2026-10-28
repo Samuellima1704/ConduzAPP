@@ -57,6 +57,11 @@ const labels: Record<string, string> = {
   falta_aluno: "Falta do aluno",
   falta_instrutor: "Falta do instrutor",
 };
+const refundLabels: Record<string, string> = {
+  pendente_simulado: "pendente (simulado)",
+  concluido_simulado: "concluído (simulado)",
+  nao_aplicavel: "não aplicável",
+};
 const tabIcons: Record<string, IconName> = {
   Início: "home",
   Agendamentos: "calendar",
@@ -1332,8 +1337,9 @@ function BookingCard({
       </View>
       {!!b.groupId && (
         <Text style={s.small}>
-          Aula {b.lessonNumber}/2 · solicitação conjunta de 120 min · total
-          contratado {money(b.groupPrice)}. Gestão individual por aula.
+          Aula {b.lessonNumber}/2 · solicitação conjunta de 2 × {b.duration}{" "}
+          min · total contratado {money(b.groupPrice)}. Gestão individual por
+          aula.
         </Text>
       )}
       <View style={s.vehicleLine}>
@@ -1345,7 +1351,8 @@ function BookingCard({
       </View>
       {b.refundStatus && (
         <Text style={s.muted}>
-          Estorno {money(b.refund)} · {b.refundStatus.replaceAll("_", " ")}
+          Estorno {money(b.refund)} ·{" "}
+          {refundLabels[b.refundStatus] || b.refundStatus.replaceAll("_", " ")}
         </Text>
       )}
       <Action
