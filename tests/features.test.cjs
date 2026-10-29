@@ -923,3 +923,17 @@ test("base real local: só o admin ajusta o relógio de ensaio, e o ajuste vale 
   s = act(s, admin, "setDemoClock", { stage: "reset" }, now, "clock", trusted);
   assert.equal(effectiveNow(s, {}, now, true, true), now);
 });
+test("duração é sempre 50 min definida pelo servidor: payload do cliente não altera", () => {
+  for (const tentativa of [{ duration: 120 }, { duration: 30 }, { duration: "50" }]) {
+    const s = act(fixture(), student, "book", { instructor: "t", start: now + DAY, ...tentativa });
+    assert.equal(s.bookings.operation.duration, 50);
+  }
+  const g = act(fixture(), student, "book", { instructor: "t", start: now + DAY, lessonCount: 2, duration: 90 }, now, "g");
+  assert.deepEqual([g.bookings.g.duration, g.bookings.g_2.duration], [50, 50]);
+  // Ao avaliar, a aula precisa estar concluída; o aluno avalia com nota de 1 a 5 e o instrutor pode avaliar o aluno.
+  let s = act(paid(), teacher, "complete", { booking: "operation" }, now + DAY + 50 * 60000);
+  assert.throws(() => act(s, student, "review", { booking: "operation", rating: 6 }, now + DAY + HOUR), /1 a 5/);
+  s = act(s, student, "review", { booking: "operation", rating: 5, comment: "Excelente" }, now + DAY + HOUR);
+  s = act(s, teacher, "review", { booking: "operation", rating: 4 }, now + DAY + HOUR);
+  assert.equal(Object.keys(s.reviews).length, 2);
+});

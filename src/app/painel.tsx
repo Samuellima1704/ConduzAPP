@@ -1943,7 +1943,8 @@ function ReviewForm({ booking: b }: { booking: Booking }) {
   return (
     <View style={s.reviewForm}>
       <Text style={s.reviewTitle}>
-        {student ? "Avalie seu instrutor" : "Avalie seu aluno"}
+        {/* A avaliação do instrutor é o padrão esperado do aluno; a do aluno é opcional para o instrutor. */}
+        {student ? "Avalie seu instrutor" : "Avalie seu aluno (opcional)"}
       </Text>
       <Text style={[s.small, { textAlign: "center" }]}>
         {state!.users[student ? b.instructor : b.student]?.name} ·{" "}

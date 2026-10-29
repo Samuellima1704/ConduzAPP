@@ -277,7 +277,7 @@ export function IdentityPanel({
   );
 }
 export function IdentityAdmin({ profile: u }: { profile: Profile }) {
-  const { run, busy } = useSession();
+  const { run, busy, state } = useSession();
   const [reason, setReason] = useState("");
   const i = u.identity!;
   return (
@@ -300,7 +300,8 @@ export function IdentityAdmin({ profile: u }: { profile: Profile }) {
       {i.reason && <Text>Parecer: {i.reason}</Text>}
       {i.reviewedAt && (
         <Text style={s.small}>
-          Decisão por {i.reviewedBy} em {dateTime(i.reviewedAt)}
+          Decisão por {state?.users[i.reviewedBy || ""]?.name || "administração"}{" "}
+          em {dateTime(i.reviewedAt)}
         </Text>
       )}
       {i.status === "pendente" && (
