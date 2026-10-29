@@ -38,12 +38,6 @@ export function useImageUpload(document = false) {
       });
       if (!r.canceled && r.assets[0]) {
         setAsset(r.assets[0]);
-        console.info("[ConduzAPP imagem] selecionada", {
-          tipo: r.assets[0].mimeType,
-          bytes: r.assets[0].fileSize,
-          largura: r.assets[0].width,
-          altura: r.assets[0].height,
-        });
       }
     } catch {
       setMessage("Não foi possível abrir a galeria. Tente novamente.");
@@ -77,7 +71,7 @@ export function useImageUpload(document = false) {
         contentType: type,
       });
       let timedOut = false;
-      // O retry padrão do SDK pode aguardar minutos quando o emulador está fora.
+      // O retry padrão do SDK pode aguardar minutos quando o servidor de arquivos não responde.
       const timeout = setTimeout(() => {
         timedOut = true;
         upload.cancel();
@@ -96,17 +90,13 @@ export function useImageUpload(document = false) {
       } catch (error) {
         if (timedOut)
           throw Error(
-            "O Storage não respondeu em 30 segundos. Execute Iniciar-ConduzAPP.ps1, aguarde todos os emuladores e tente salvar novamente.",
+            "O envio demorou mais que o esperado. Confira sua conexão e tente novamente.",
           );
         throw error;
       } finally {
         clearTimeout(timeout);
         unsubscribe();
       }
-      console.info("[ConduzAPP imagem] upload concluído", {
-        tipo: type,
-        bytes: blob.size,
-      });
       if (auth.currentUser?.uid !== user.uid)
         throw Error(
           "Sua sessão mudou. Entre novamente antes de salvar a foto.",
@@ -119,25 +109,21 @@ export function useImageUpload(document = false) {
             ? "Documento enviado para análise manual."
             : "Foto atualizada e salva.",
         );
-        console.info("[ConduzAPP imagem] referência persistida no perfil");
       } else {
         setMessage(
-          "A imagem foi enviada, mas não foi possível confirmar o salvamento do perfil. Atualize a página para conferir e veja o aviso no topo antes de tentar novamente.",
+          "A imagem foi enviada, mas o perfil não foi atualizado. Confira o aviso no topo da tela e tente novamente.",
         );
       }
     } catch (e) {
       const code = (e as { code?: string })?.code;
-      console.warn("[ConduzAPP imagem] falha no envio ou na gravação", {
-        codigo: code || "erro-local",
-      });
       setMessage(
         code === "storage/unauthorized"
           ? "Envio não autorizado. Entre novamente e confira se o arquivo pertence ao seu perfil."
           : code === "storage/unauthenticated"
             ? "Sua sessão terminou. Entre novamente para enviar a imagem."
-            : e instanceof Error && !e.message.includes("Firebase")
+            : e instanceof Error && !/firebase|storage|error/i.test(e.message)
               ? e.message
-              : "Não foi possível enviar a imagem. Confira a conexão e os emuladores locais e tente novamente.",
+              : "Não foi possível enviar a imagem. Confira sua conexão e tente novamente.",
       );
     } finally {
       setSending(false);

@@ -104,7 +104,7 @@ async function load() {
     ALUNOS.filter((a) => a.aprovado).forEach((a, n) => {
       const ins = INSTRUTORES[n];
       const start = midnight - DAY + (9 + n) * HOUR;
-      const id = `carga-aula-${n + 1}`;
+      const id = require("node:crypto").randomUUID();
       s.bookings[id] = {
         id, student: a.uid, instructor: ins.uid, start, duration: LESSON_MIN, price: ins.price,
         commission: Math.round((ins.price * COMMISSION_PERCENT) / 100), status: "concluido", paid: true,

@@ -1,4 +1,5 @@
 "use strict";
+const { UserError } = require("./errors");
 function validImage(bytes, type) {
   if (type === "image/png")
     return bytes
@@ -21,14 +22,14 @@ async function validateMedia(bucket, uid, scope, op, path) {
     !/^[a-zA-Z0-9._-]+$/.test(path.split("/")[3] || "") ||
     path.split("/").length !== 4
   )
-    throw Error("Caminho de imagem inválido ou de outro usuário.");
+    throw new UserError("Caminho de imagem inválido ou de outro usuário.");
   const file = bucket.file(path);
   const [meta] = await file.getMetadata();
   if (Number(meta.size) <= 0 || Number(meta.size) >= 5 * 1024 * 1024)
-    throw Error("Escolha uma imagem menor que 5 MB.");
+    throw new UserError("Escolha uma imagem menor que 5 MB.");
   const [bytes] = await file.download();
   if (!validImage(bytes, meta.contentType))
-    throw Error("Arquivo inválido. Use uma imagem JPEG, PNG ou WebP.");
+    throw new UserError("Arquivo inválido. Use uma imagem JPEG, PNG ou WebP.");
   try {
     await require("sharp")(bytes, {
       failOn: "warning",
@@ -37,7 +38,7 @@ async function validateMedia(bucket, uid, scope, op, path) {
       .rotate()
       .toBuffer();
   } catch {
-    throw Error(
+    throw new UserError(
       "Imagem inválida, incompleta ou maior que 25 megapixels. Escolha outra imagem JPEG, PNG ou WebP.",
     );
   }

@@ -12,18 +12,18 @@ export function StartConfirmation({ booking: b }: { booking: Booking }) {
   const [code, setCode] = useState("");
   const c = b.startConfirmation;
   if (me.role === "admin")
-    // Relógio de ensaio: só o admin, no ambiente local ou em cenário online de demonstração.
+    // Modo apresentação: só o admin avança o horário do servidor, para mostrar início e término sem esperar.
     return !cloudDemo || state?.demo ? (
       <View style={s.gap}>
         <Text style={s.small}>
-          Relógio de ensaio da administração. Vale só para o servidor local e
-          não altera o relógio do computador.
+          Modo apresentação (administração): avança o horário do servidor para
+          demonstrar o início e o término da aula.
         </Text>
         {(
           [
-            ["start", "Ensaio: horário de início"],
-            ["expired", "Ensaio: após dez minutos"],
-            ["end", "Ensaio: término da aula"],
+            ["start", "Avançar para o início"],
+            ["expired", "Avançar para após 10 minutos"],
+            ["end", "Avançar para o término"],
           ] as const
         ).map(([stage, title]) => (
           <Button

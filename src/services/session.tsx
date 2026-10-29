@@ -9,6 +9,7 @@ import {
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { auth, functions, cloudDemo } from "./firebase";
+import { friendlyError } from "@/lib/presentation";
 export type Profile = {
   id: string;
   name: string;
@@ -184,8 +185,8 @@ export function Session({ children }: { children: ReactNode }) {
       if (auth.currentUser?.uid !== uid || mine !== seq.current) return;
       setError(
         cloudDemo
-          ? "Não foi possível acessar a demonstração online. Confira a conexão e se sua conta foi habilitada pelo responsável."
-          : "Não foi possível conectar aos emuladores. Execute Iniciar-ConduzAPP.ps1 e aguarde o Firebase.",
+          ? "Não foi possível acessar sua conta agora. Confira a conexão e tente novamente."
+          : "Não foi possível conectar ao servidor. Confira a conexão e tente novamente em instantes.",
       );
     }
   }
@@ -231,7 +232,7 @@ export function Session({ children }: { children: ReactNode }) {
       return true;
     } catch (e: unknown) {
       if (auth.currentUser?.uid !== uid) return false;
-      setError(e instanceof Error ? e.message : "Não foi possível salvar.");
+      setError(friendlyError(e));
       return false;
     } finally {
       inFlight.current = false;

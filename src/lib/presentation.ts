@@ -48,8 +48,12 @@ export function authFields(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
     return "Digite um endereço de e-mail válido.";
   if (signup && name.trim().length < 3) return "Informe seu nome completo.";
-  if (signup && password.length < 6)
-    return "A senha não atende aos requisitos mínimos de segurança.";
+  // Política de senha do cadastro: 8+ caracteres, com letras e números.
+  if (
+    signup &&
+    (password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password))
+  )
+    return "A senha não atende aos requisitos mínimos de segurança: use 8 ou mais caracteres, com letras e números.";
   return "";
 }
 export const homeTab = (_role: string, pending = false) =>
@@ -163,7 +167,7 @@ type DashboardBooking = {
 };
 const brasiliaDay = (ms: number) =>
   new Date(ms - 3 * 3600000).toISOString().slice(0, 10);
-// Métricas do painel do instrutor; valores em centavos e sempre simulados.
+// Métricas do painel do instrutor; valores em centavos.
 export function instructorDashboard<T extends DashboardBooking>(
   bookings: T[],
   uid: string,
@@ -206,4 +210,22 @@ export function instructorDashboard<T extends DashboardBooking>(
       .sort((a, b) => b.start - a.start)
       .slice(0, 5),
   };
+}
+// Mensagem de erro para o usuário final. O servidor só envia texto de negócio
+// (failed-precondition, permission-denied, unauthenticated) ou uma mensagem
+// genérica (internal); qualquer outro erro, como falha de rede, vira um aviso
+// neutro, sem códigos ou rastros técnicos.
+export function friendlyError(error: unknown): string {
+  const { code = "", message = "" } = (error || {}) as {
+    code?: string;
+    message?: string;
+  };
+  const kind = code.replace(/^functions\//, "");
+  if (
+    ["failed-precondition", "permission-denied", "unauthenticated", "internal"].includes(kind) &&
+    message.length > 12 &&
+    !/firebase|error|exception|undefined|null|fetch/i.test(message)
+  )
+    return message;
+  return "Não foi possível concluir agora. Confira sua conexão e tente novamente.";
 }

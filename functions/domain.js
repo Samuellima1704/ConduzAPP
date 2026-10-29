@@ -1,4 +1,5 @@
 "use strict";
+const { UserError } = require("./errors");
 const { createHash } = require("node:crypto");
 const {
   verified,
@@ -21,7 +22,7 @@ const LESSON_MIN = 50;
 // Taxa de intermediação (take rate) do modelo de negócio, sobre cada aula; congelada na reserva.
 const COMMISSION_PERCENT = 12;
 const fail = (message) => {
-  throw new Error(message);
+  throw new UserError(message);
 };
 const check = (condition, message) => {
   if (!condition) fail(message);
@@ -87,7 +88,7 @@ function bookingNotifications(state, actor, op, input, id, now) {
   const events = {
     book: ["Nova solicitação recebida", "instructor"],
     accept: ["Solicitação aceita: aguardando pagamento", "student"],
-    pay: ["Aula confirmada — pagamento simulado", "both"],
+    pay: ["Aula confirmada: pagamento registrado", "both"],
     cancel: ["Aula cancelada", "other"],
     propose: ["Pedido de remarcação recebido", "other"],
     reschedule: [
@@ -956,7 +957,7 @@ function execute(
             );
             return { state: s, result: view(s, actor, now), write: false };
           }
-          check(s.messages.length < 1500, "Limite da demonstração atingido.");
+          check(s.messages.length < 1500, "Limite de mensagens atingido. Fale com o suporte.");
           s.conversations[c.id] ||= { ...c, createdAt: now };
           s.messages.push({
             id,
@@ -982,11 +983,11 @@ function execute(
     s.audit.push({ id, by: actor.uid, op, at: now });
   check(
     Buffer.byteLength(JSON.stringify(s), "utf8") < 850000,
-    "Limite de armazenamento da demonstração atingido.",
+    "Limite de armazenamento atingido. Fale com o suporte.",
   );
   check(
     s.audit.length < 2000 && Object.keys(s.bookings).length < 300,
-    "Limite do ambiente de demonstração atingido.",
+    "Limite de operações atingido. Fale com o suporte.",
   );
   return {
     state: s,

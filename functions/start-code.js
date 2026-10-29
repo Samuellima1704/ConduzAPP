@@ -1,4 +1,5 @@
 "use strict";
+const { UserError } = require("./errors");
 const {
   randomInt,
   randomBytes,
@@ -89,14 +90,14 @@ function projectBooking(b, actor, now) {
 function confirmStart(b, actor, input, now) {
   const c = b.startConfirmation;
   if (!b.paid || b.status !== "confirmado" || actor.uid !== b.instructor)
-    throw Error("Confirmação exclusiva do instrutor desta aula paga.");
+    throw new UserError("Confirmação exclusiva do instrutor desta aula paga.");
   if (c?.status === "confirmado") return null;
   if (!c || now < b.start || now > c.expiresAt)
-    throw Error(
+    throw new UserError(
       "Confirmação de início disponível do início até dez minutos após. Procure o suporte se o prazo expirou.",
     );
   if (c.status === "bloqueado" || c.attempts >= 5)
-    throw Error("Limite de tentativas atingido. Encaminhe ao suporte.");
+    throw new UserError("Limite de tentativas atingido. Encaminhe ao suporte.");
   const value = String(input.code || "").slice(0, 100),
     candidate = hash(c.salt, value);
   if (
@@ -126,24 +127,24 @@ function setDemoClock(s, actor, input, now, trusted) {
     !!trusted.demoScope?.startsWith("demo-") &&
     s.demo?.scope === trusted.demoScope;
   if (!actor.admin || !(local || cloudScenario))
-    throw Error(
-      "Relógio de ensaio exclusivo do administrador no ambiente local ou em cenário de demonstração.",
+    throw new UserError(
+      "Ajuste de horário exclusivo do administrador no modo apresentação.",
     );
   if (local) s.demo = { ...s.demo, scope: trusted.demoScope };
   let target = trusted.realNow;
   if (input.stage !== "reset") {
     const b = s.bookings[input.booking];
-    if (!b) throw Error("Aula do ensaio não encontrada.");
+    if (!b) throw new UserError("Aula não encontrada.");
     if (input.stage === "start") target = b.start;
     else if (input.stage === "expired") target = b.start + 11 * 60000;
     else if (input.stage === "end") target = b.start + b.duration * 60000;
-    else throw Error("Etapa de ensaio inválida.");
+    else throw new UserError("Etapa de horário inválida.");
   }
   if (
     !Number.isFinite(target) ||
     Math.abs(target - trusted.realNow) > 7 * 86400000
   )
-    throw Error("Relógio do ensaio fora do limite de sete dias.");
+    throw new UserError("Ajuste de horário limitado a sete dias.");
   s.demo.clockOffset = input.stage === "reset" ? 0 : target - trusted.realNow;
   s.demo.clockBy = actor.uid;
   s.demo.clockUpdatedAt = trusted.realNow;

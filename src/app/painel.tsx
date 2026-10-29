@@ -57,9 +57,11 @@ const labels: Record<string, string> = {
   falta_aluno: "Falta do aluno",
   falta_instrutor: "Falta do instrutor",
 };
+const protocol = (id: string) =>
+  id.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
 const refundLabels: Record<string, string> = {
-  pendente_simulado: "pendente (simulado)",
-  concluido_simulado: "concluído (simulado)",
+  pendente_simulado: "em processamento",
+  concluido_simulado: "concluído",
   nao_aplicavel: "não aplicável",
 };
 const tabIcons: Record<string, IconName> = {
@@ -250,11 +252,11 @@ export default function Painel() {
       {api.state?.demoClockActive && (
         <View style={s.notice}>
           <Text>
-            Relógio de ensaio ativo (administração) · {dateTime(api.state.now)}
+            Modo apresentação: horário ajustado para {dateTime(api.state.now)}
           </Text>
           {me.role === "admin" && (
             <Button
-              title="Restaurar relógio do ensaio"
+              title="Voltar ao horário real"
               variant="secondary"
               onPress={async () => {
                 if (await api.run("setDemoClock", { stage: "reset" }))
@@ -796,9 +798,9 @@ function Search({
             }}
           />
           <Text style={s.small}>
-            A solicitação depende do aceite do instrutor. O pagamento simulado
-            fica disponível depois do aceite. Duas aulas são acompanhadas
-            individualmente, com as regras existentes para cada aula.
+            A solicitação depende do aceite do instrutor. O pagamento é liberado
+            depois do aceite. No pacote de duas aulas, cada aula é acompanhada
+            individualmente.
           </Text>
         </Card>
         <Reviews uid={u.id} />
@@ -996,8 +998,8 @@ function InstructorHome({
           </View>
         </View>
         <Text style={s.small}>
-          Valores após a taxa de 12% da plataforma e eventuais estornos. Nenhum valor real
-          é movimentado.
+          Valores após a taxa de 12% da plataforma e eventuais estornos.
+          Ambiente de homologação: sem transferência bancária.
         </Text>
       </Card>
       {d.toComplete > 0 && (
@@ -1309,6 +1311,8 @@ function BookingCard({
           <Text style={s.muted}>
             {dateTime(b.start)} · {b.duration} min
           </Text>
+          {/* Protocolo curto para o cliente citar ao suporte. */}
+          <Text style={s.small}>Reserva nº {protocol(b.id)}</Text>
         </View>
       </View>
       {!!other && !!onProfile && (
@@ -1332,7 +1336,7 @@ function BookingCard({
         <Text style={s.price}>{money(b.price)}</Text>
         <Text style={s.small}>
           {me.role !== "aluno" && `Comissão ${money(b.commission)} · `}
-          {b.paid ? "Pagamento simulado confirmado" : "Sem pagamento"}
+          {b.paid ? "Pagamento confirmado" : "Aguardando pagamento"}
         </Text>
       </View>
       {!!b.groupId && (
@@ -1384,10 +1388,17 @@ function BookingCard({
               </>
             )}
           {student && b.status === "aguardando_pagamento" && (
-            <Button
-              title={"Confirmar pagamento (simulado) · " + money(paymentTotal)}
-              onPress={() => run("pay", { booking: b.id })}
-            />
+            <>
+              <Button
+                title={"Confirmar pagamento · " + money(paymentTotal)}
+                onPress={() => run("pay", { booking: b.id })}
+              />
+              {/* Sem gateway integrado: a confirmação registra o pagamento sem cobrança. */}
+              <Text style={s.small}>
+                Ambiente de homologação: a confirmação registra o pagamento
+                sem cobrança no cartão.
+              </Text>
+            </>
           )}
           {(student || teacher) &&
             ["solicitado", "aguardando_pagamento", "confirmado"].includes(
@@ -1397,7 +1408,7 @@ function BookingCard({
               <>
                 <Text style={s.small}>
                   Aluno: acima de 2h, reembolso integral; até 2h antes do
-                  início, 50%. Instrutor: integral. Sem cobrança real.
+                  início, 50%. Cancelamento pelo instrutor: reembolso integral.
                 </Text>
                 <Action
                   danger
@@ -1504,7 +1515,7 @@ function BookingCard({
                   : "Elegibilidade depende da janela de 24h e da análise de disputas."}
               </Text>
               <Action
-                title="Verificar elegibilidade (simulação)"
+                title="Verificar liberação do repasse"
                 onPress={() => run("eligibility", { booking: b.id })}
               />
             </>
@@ -1530,7 +1541,7 @@ function BookingCard({
               />
               {b.refundStatus === "pendente_simulado" && (
                 <Action
-                  title="Registrar estorno (simulado)"
+                  title="Marcar estorno como concluído"
                   onPress={() => run("refund", { booking: b.id })}
                 />
               )}
@@ -1554,8 +1565,8 @@ function Evidence({ booking: b }: { booking: Booking }) {
         ),
       );
       setFiles(results.flatMap((r) => r.items.map((x) => x.fullPath)));
-    } catch (e) {
-      setMessage(String(e));
+    } catch {
+      setMessage("Não foi possível carregar as evidências. Tente novamente.");
     }
   }
   async function upload() {
@@ -1575,8 +1586,8 @@ function Evidence({ booking: b }: { booking: Booking }) {
       );
       setMessage("Foto privada anexada.");
       await load();
-    } catch (e) {
-      setMessage(String(e));
+    } catch {
+      setMessage("Não foi possível anexar a foto. Use uma imagem JPEG, PNG ou WebP de até 5 MB.");
     }
   }
   async function show(path: string) {
@@ -1587,8 +1598,8 @@ function Evidence({ booking: b }: { booking: Booking }) {
       let binary = "";
       for (const value of bytes) binary += String.fromCharCode(value);
       setPhoto(`data:image/jpeg;base64,${btoa(binary)}`);
-    } catch (e) {
-      setMessage(String(e));
+    } catch {
+      setMessage("Não foi possível abrir a imagem. Tente novamente.");
     }
   }
   return (
@@ -2312,7 +2323,7 @@ function Admin({ tab }: { tab: string }) {
       <View style={s.gap}>
         <Heading
           title="Suporte e disputas"
-          sub="Decisões registradas, com acompanhamento dos estornos simulados."
+          sub="Decisões registradas, com acompanhamento dos estornos."
         />
         {Object.values(state!.tickets).map((t) => (
           <TicketCard key={t.id} ticket={t} />
@@ -2462,7 +2473,7 @@ function TicketCard({ ticket: t }: { ticket: Ticket }) {
           />
           {b && (
             <Input
-              label="Estorno simulado em R$"
+              label="Valor do estorno em R$"
               value={refund}
               onChangeText={setRefund}
               keyboardType="decimal-pad"

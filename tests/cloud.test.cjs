@@ -105,7 +105,7 @@ test("somente contas convidadas do cenário autorizado acessam o backend online"
   ])
     assert.throws(
       () => authorizeRuntime(runtime, { uid: "s", token }),
-      /habilitada/,
+      /liberada/,
     );
   authorizeRuntime({ emulator: true }, { uid: "local", token: {} });
 });

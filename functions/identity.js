@@ -1,6 +1,7 @@
 "use strict";
+const { UserError } = require("./errors");
 const check = (v, message) => {
-  if (!v) throw new Error(message);
+  if (!v) throw new UserError(message);
 };
 const verified = (u) =>
   u?.role === "admin" || u?.identity?.status === "aprovado";
@@ -35,7 +36,7 @@ function identityOperation(s, actor, op, input, now, id, trusted) {
     } else {
       check(
         me.photoPath,
-        "Adicione sua foto de perfil antes de enviar o documento fictício.",
+        "Adicione sua foto de perfil antes de enviar o documento.",
       );
       me.identity = {
         status: "pendente",
@@ -93,9 +94,9 @@ function identityOperation(s, actor, op, input, now, id, trusted) {
       s,
       u.id,
       id + "_identity",
-      "Verificação de identidade " +
-        input.decision +
-        " — análise manual simulada",
+      input.decision === "aprovado"
+        ? "Verificação de identidade aprovada"
+        : "Verificação de identidade não aprovada: confira o parecer no Perfil",
       now,
     );
     return true;

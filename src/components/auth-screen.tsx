@@ -36,7 +36,7 @@ export function AuthScreen({
   async function submit() {
     if (cloudDemo && signup) {
       setError(
-        "Use uma conta fornecida pelo responsável pela demonstração online.",
+        "Neste ambiente, as contas são criadas pela administração. Fale com o suporte.",
       );
       return;
     }
@@ -49,9 +49,9 @@ export function AuthScreen({
     setError("");
     try {
       if (signup) {
-        if (name.trim().length < 3 || password.length < 6)
+        if (name.trim().length < 3 || password.length < 8)
           throw new Error(
-            "Informe nome completo e senha com seis ou mais caracteres.",
+            "Informe nome completo e senha com 8 ou mais caracteres.",
           );
         await createUserWithEmailAndPassword(auth, email.trim(), password);
         await httpsCallable(
@@ -155,6 +155,14 @@ export function AuthScreen({
               loading={busy}
               onPress={submit}
             />
+            {signup && (
+              <Text style={s.subtitle}>
+                Ao criar sua conta, você autoriza o uso dos seus dados para a
+                prestação do serviço, conforme a LGPD (Lei 13.709/2018). Seus
+                documentos ficam privados e só são vistos pela análise
+                cadastral.
+              </Text>
+            )}
             <View style={s.divider}>
               <View style={s.line} />
               <Text style={s.subtitle}>ou</Text>
@@ -210,7 +218,6 @@ export function AuthScreen({
               />
             )}
           </Card>
-          {/* Sem atalhos de contas fictícias: todo acesso é por cadastro real no Firebase Auth. */}
           <Text style={s.foot}>
             ConduzAPP · Sistemas de Informação · UniFOA 2026
           </Text>

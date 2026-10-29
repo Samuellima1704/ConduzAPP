@@ -40,7 +40,7 @@ function authorizeRuntime(config, auth) {
     (auth.token?.conduzDemo !== true || auth.token?.stateScope !== config.scope)
   )
     throw new Error(
-      "Esta conta não foi habilitada para a demonstração online.",
+      "Sua conta ainda não foi liberada neste ambiente. Fale com o suporte.",
     );
 }
 module.exports = { runtimeConfig, authorizeRuntime };

@@ -5,6 +5,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { randomUUID } = require("node:crypto");
 const { execute, empty } = require("./domain");
 const { statePath, effectiveNow } = require("./state-scope");
+const { UserError } = require("./errors");
 let database;
 function getDatabase() {
   if (!database) {
@@ -99,9 +100,14 @@ exports.conduz = onCall(
         return result.result;
       });
     } catch (error) {
+      // Regra de negócio: a mensagem foi escrita para o usuário.
+      if (error instanceof UserError)
+        throw new HttpsError("failed-precondition", error.message);
+      // Falha interna: detalhes só no log do servidor, nunca na tela.
+      console.error("conduz: falha interna", { op, id, error });
       throw new HttpsError(
-        "failed-precondition",
-        error.message || "Operação recusada.",
+        "internal",
+        "Não foi possível concluir a operação agora. Tente novamente em instantes.",
       );
     }
   },

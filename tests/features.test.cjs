@@ -937,3 +937,24 @@ test("duração é sempre 50 min definida pelo servidor: payload do cliente não
   s = act(s, teacher, "review", { booking: "operation", rating: 4 }, now + DAY + HOUR);
   assert.equal(Object.keys(s.reviews).length, 2);
 });
+test("mensagens de erro na tela são amigáveis e nunca expõem detalhes técnicos", () => {
+  const generic = /Confira sua conexão/;
+  assert.equal(
+    ux.friendlyError({ code: "functions/failed-precondition", message: "Horário já reservado." }),
+    "Horário já reservado.",
+  );
+  assert.match(ux.friendlyError({ code: "functions/unavailable", message: "unavailable" }), generic);
+  assert.match(ux.friendlyError({ code: "functions/internal", message: "internal" }), generic);
+  assert.match(ux.friendlyError(new TypeError("Cannot read properties of undefined (reading 'x')")), generic);
+  assert.match(ux.friendlyError({ code: "functions/failed-precondition", message: "FirebaseError: Missing or insufficient permissions" }), generic);
+  assert.match(ux.friendlyError(undefined), generic);
+  // Política de senha do cadastro.
+  assert.match(ux.authFields("novo@exemplo.com", "abcdefgh", true, "Nome Completo"), /segurança/);
+  assert.match(ux.authFields("novo@exemplo.com", "1234567", true, "Nome Completo"), /segurança/);
+  assert.equal(ux.authFields("novo@exemplo.com", "Conduz2026", true, "Nome Completo"), "");
+});
+test("falha interna do servidor vira mensagem genérica; regra de negócio mantém o texto", () => {
+  const { UserError } = require("../functions/errors");
+  assert.throws(() => execute(fixture(), student, "book", { instructor: "t", start: now + DAY + 60000, address: {} }), UserError);
+  assert.ok(!(new TypeError("x") instanceof UserError));
+});

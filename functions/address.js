@@ -1,7 +1,8 @@
 "use strict";
+const { UserError } = require("./errors");
 function address(input) {
   if (!input || typeof input !== "object")
-    throw Error("Informe rua, número, bairro, cidade e UF. CEP é opcional.");
+    throw new UserError("Informe rua, número, bairro, cidade e UF. CEP é opcional.");
   const out = {};
   for (const [key, max] of [
     ["street", 120],
@@ -12,7 +13,7 @@ function address(input) {
   ]) {
     out[key] = String(input[key] || "").trim();
     if (!out[key] || out[key].length > max)
-      throw Error("Informe rua, número, bairro, cidade e UF válidos.");
+      throw new UserError("Informe rua, número, bairro, cidade e UF válidos.");
   }
   out.uf = out.uf.toUpperCase();
   if (
@@ -20,10 +21,10 @@ function address(input) {
       .split(" ")
       .includes(out.uf)
   )
-    throw Error("UF inválida.");
+    throw new UserError("UF inválida.");
   const raw = String(input.cep || "").trim();
   if (raw && !/^\d{5}-?\d{3}$/.test(raw))
-    throw Error("CEP deve ter oito dígitos ou ficar vazio.");
+    throw new UserError("CEP deve ter oito dígitos ou ficar vazio.");
   out.cep = raw.replace(/\D/g, "");
   return out;
 }
