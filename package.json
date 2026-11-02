@@ -48,7 +48,8 @@
     "emulators": "firebase emulators:start --project demo-conduzapp",
     "admin": "node scripts/tornar-admin.cjs",
     "test:e2e": "node scripts/testar-tudo.cjs",
-    "carga:teste": "node scripts/carga-teste.cjs"
+    "carga:teste": "node scripts/carga-teste.cjs",
+    "test:carga": "powershell -ExecutionPolicy Bypass -File scripts/Teste-Carga.ps1"
   },
   "private": true
 }

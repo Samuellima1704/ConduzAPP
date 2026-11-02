@@ -958,3 +958,37 @@ test("falha interna do servidor vira mensagem genérica; regra de negócio mant�
   assert.throws(() => execute(fixture(), student, "book", { instructor: "t", start: now + DAY + 60000, address: {} }), UserError);
   assert.ok(!(new TypeError("x") instanceof UserError));
 });
+test("cache de leitura expira no prazo e fila executa escritas do mesmo documento uma por vez", async () => {
+  const { createStateCache, createWriteQueue } = require("../functions/state-cache");
+  let t = 0;
+  const cache = createStateCache(2000, () => t);
+  cache.set("private/state", { v: 1 });
+  t = 1999;
+  assert.deepEqual(cache.get("private/state"), { v: 1 });
+  t = 2000;
+  assert.equal(cache.get("private/state"), undefined);
+  const serialized = createWriteQueue();
+  const order = [];
+  let running = 0,
+    peak = 0;
+  const task = (name, ms, fail) => () =>
+    new Promise((resolve, reject) => {
+      running++;
+      peak = Math.max(peak, running);
+      setTimeout(() => {
+        running--;
+        order.push(name);
+        fail ? reject(new Error(name)) : resolve(name);
+      }, ms);
+    });
+  const results = await Promise.allSettled([
+    serialized("doc", task("a", 30)),
+    serialized("doc", task("b", 5, true)),
+    serialized("doc", task("c", 1)),
+    serialized("outro", task("x", 1)),
+  ]);
+  assert.deepEqual(order.filter((n) => n !== "x"), ["a", "b", "c"]); // ordem preservada
+  assert.equal(results[1].status, "rejected"); // falha não trava a fila
+  assert.equal(results[2].value, "c");
+  assert.ok(peak <= 2); // no máximo uma por documento (+1 de outro documento)
+});

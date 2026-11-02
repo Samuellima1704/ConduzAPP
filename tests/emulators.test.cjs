@@ -24,6 +24,9 @@ const db = require("../functions/emulator-db").configureEmulatorFirestore(
 );
 const scope = `test-${require("node:crypto").randomUUID()}`;
 const stateRef = db.doc(`private/${scope}`);
+// O backend reaproveita a leitura do estado por até 2 s (functions/state-cache.js).
+// Depois de gravar direto pelo Admin SDK, o teste aguarda esse prazo, como em produção.
+const settle = () => new Promise((resolve) => setTimeout(resolve, 2100));
 const generatedBookings = new Set();
 let preservedState;
 let env,
@@ -137,6 +140,7 @@ before(async () => {
 });
 beforeEach(async () => {
   await stateRef.set(baseline);
+  await settle();
 });
 after(async () => {
   await stateRef.delete();
@@ -506,6 +510,7 @@ test("código de início é privado e tentativas inválidas persistem na transa�
   const s = (await stateRef.get()).data();
   s.bookings[id].start = Date.now() - 60000;
   await stateRef.set(s);
+  await settle();
   r = await call("aluno", "state");
   const code = r.result.bookings[id].startConfirmation.code;
   assert.ok(/^\d{8}$/.test(code));
@@ -549,6 +554,7 @@ test("código expirado não muda pagamento, falta ou cancelamento e bloqueia ele
   const s = (await stateRef.get()).data();
   s.bookings[id].start = Date.now() - 11 * 60000;
   await stateRef.set(s);
+  await settle();
   r = await call("aluno", "state");
   const b = r.result.bookings[id];
   assert.equal(b.startConfirmation.status, "expirado");
@@ -615,6 +621,7 @@ test("credenciamento, indisponibilidade e suspensão são impostos no backend re
     const s = structuredClone(baseline);
     Object.assign(s.users[users.instrutor.uid], change);
     await stateRef.set(s);
+    await settle();
     assert.ok(
       (await call("aluno", "book", { instructor: users.instrutor.uid, start }))
         .error,
@@ -640,6 +647,7 @@ test("conclusão e avaliações bilaterais pelo endpoint com tempo do servidor",
     payoutEligible: false,
   };
   await stateRef.set(state);
+  await settle();
   let r = await call("instrutor", "complete", { booking: id });
   assert.equal(r.result.bookings[id].status, "concluido");
   assert.ok((await call("aluno", "review", { booking: id, rating: 5 })).result);
@@ -744,6 +752,7 @@ test("avaliações privadas de alunos não vazam pelo endpoint; instrutores cont
     comment: "Avaliação pública do instrutor",
   };
   await stateRef.set(s);
+  await settle();
   for (const role of ["aluno", "instrutor", "admin"]) {
     const r = await call(role, "state");
     assert.equal(
@@ -790,6 +799,7 @@ test("falta administrativa seguida de contestação válida preserva pagamento e
       payoutEligible: false,
     };
     await stateRef.set(s);
+    await settle();
     let r = await call("admin", "absence", {
       booking: id,
       who,
@@ -884,6 +894,7 @@ test("chat não inicia com instrutor pendente e instrutor não inicia conversa n
   const s = structuredClone(baseline);
   s.users[users.instrutor.uid].approval = "pendente";
   await stateRef.set(s);
+  await settle();
   assert.ok(
     (await call("aluno", "openConversation", { to: users.instrutor.uid }))
       .error,
@@ -931,6 +942,7 @@ test("tags acompanham reserva, aceite, pagamento, cancelamento e conclusão no s
     start: now - 2 * HOUR,
   });
   await stateRef.set(s);
+  await settle();
   r = await call("instrutor", "complete", { booking: b.id });
   assert.equal(tag(r.result), "SEM AGENDAMENTO");
 });
@@ -995,6 +1007,7 @@ test("ensaio completo com a mesma fábrica de dados da apresentação e relógio
   // Acrescenta apenas a conta de terceiro criada por esta suíte.
   fixture.users[users.outro.uid] = baseline.users[users.outro.uid];
   await stateRef.set(fixture);
+  await settle();
   const historical = fixture.demo.historicalBooking;
   let r = await call("instrutor", "complete", { booking: historical });
   assert.equal(r.result.bookings[historical].status, "concluido");
