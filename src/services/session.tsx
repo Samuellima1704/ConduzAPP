@@ -223,7 +223,10 @@ export function Session({ children }: { children: ReactNode }) {
       const r = await invoke({ op, input });
       if (auth.currentUser?.uid !== uid) return false;
       if (mine === seq.current) setState(r.data);
-      setNotice(op === "readMessages" ? "" : "Alteração salva.");
+      // Marcar como lido não é uma "alteração" para o usuário: sem aviso de confirmação.
+      setNotice(
+        ["readMessages", "readNotification"].includes(op) ? "" : "Alteração salva.",
+      );
       if (r.data.operationError) {
         setNotice("");
         setError(r.data.operationError);

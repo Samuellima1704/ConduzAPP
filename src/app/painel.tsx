@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -13,6 +13,7 @@ import { signOut } from "firebase/auth";
 import { ref, uploadBytes, listAll, getBytes } from "firebase/storage";
 import * as ImagePicker from "expo-image-picker";
 import { auth, storage } from "@/services/firebase";
+import { DURACAO_AULA_MIN } from "@/services/seed";
 import {
   useSession,
   money,
@@ -39,6 +40,7 @@ import {
 } from "@/components/identity-panel";
 import { AddressForm } from "@/components/address-form";
 import { StartConfirmation } from "@/components/start-confirmation";
+import { NotificationsDrawer } from "@/components/notifications-drawer";
 import { emptyAddress } from "@/lib/cep";
 import {
   homeTab,
@@ -81,6 +83,20 @@ const weekdays = [
   "Sábado",
 ];
 const end = (b: Booking) => b.start + b.duration * 60000;
+// Início de cada aula do pacote: uma por hora cheia (a aula dura DURACAO_AULA_MIN).
+const INTERVALO_ENTRE_AULAS_MS = 3600000;
+const hourMinute = (ms: number) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(ms);
+// Ex.: "14:00–14:50 e 15:00–15:50".
+const lessonRanges = (start: number, count: number) =>
+  Array.from({ length: count }, (_, i) => {
+    const from = start + i * INTERVALO_ENTRE_AULAS_MS;
+    return `${hourMinute(from)}–${hourMinute(from + DURACAO_AULA_MIN * 60000)}`;
+  }).join(" e ");
 function Action({
   title,
   onPress,
@@ -142,14 +158,10 @@ export default function Painel() {
   const [searchKey, setSearchKey] = useState(0);
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [
-    tab,
-    selected,
-    participantId,
-    showNotifications,
-    api.state?.me?.identity?.status,
-  ]);
+  // A gaveta de notificações abre por cima; o conteúdo mantém a posição de rolagem.
+  }, [tab, selected, participantId, api.state?.me?.identity?.status]);
   useEffect(() => setParticipantId(null), [api.user?.uid]);
+  const closeNotifications = useCallback(() => setShowNotifications(false), []);
   const openChat = (to: string) => {
     setParticipantId(null);
     setMessageTo(to);
@@ -276,20 +288,6 @@ export default function Painel() {
         contentContainerStyle={s.content}
         keyboardShouldPersistTaps="handled"
       >
-        {showNotifications && (
-          <Notifications
-            goProfile={() => {
-              setParticipantId(null);
-              setTab("Perfil");
-              setShowNotifications(false);
-            }}
-            goBookings={() => {
-              setParticipantId(null);
-              setTab("Agendamentos");
-              setShowNotifications(false);
-            }}
-          />
-        )}
         {identityPending ? (
           <View style={s.gap}>
             <Heading
@@ -437,52 +435,22 @@ export default function Painel() {
           ))}
         </View>
       </View>
+      {/* Notificações em gaveta lateral à direita, sobre o conteúdo. */}
+      <NotificationsDrawer
+        open={showNotifications}
+        onClose={closeNotifications}
+        goProfile={() => {
+          setParticipantId(null);
+          setTab("Perfil");
+          setShowNotifications(false);
+        }}
+        goBookings={() => {
+          setParticipantId(null);
+          setTab("Agendamentos");
+          setShowNotifications(false);
+        }}
+      />
     </SafeAreaView>
-  );
-}
-function Notifications({
-  goBookings,
-  goProfile,
-}: {
-  goBookings: () => void;
-  goProfile: () => void;
-}) {
-  const { state, run } = useSession();
-  const list = Object.values(state!.notifications || {}).sort(
-    (a, b) => b.at - a.at,
-  );
-  return (
-    <View style={s.gap}>
-      <Heading title="Notificações" sub="Avisos internos sobre suas aulas." />
-      {!list.length && (
-        <Text style={s.muted}>Nenhuma notificação por enquanto.</Text>
-      )}
-      {list.map((n) => (
-        <Card key={n.id} style={s.gap}>
-          <View style={s.sectionHeading}>
-            <Icon name="bell" size={20} />
-            <Text style={[s.cardTitle, s.flex]}>{n.title}</Text>
-            <Badge
-              title={n.readAt ? "Lida" : "Nova"}
-              tone={n.readAt ? "neutral" : "primary"}
-            />
-          </View>
-          <Text style={s.small}>
-            {dateTime(n.at)} · {n.readAt ? "Lida" : "Não lida"}
-          </Text>
-          <Action
-            title={n.event === "identity" ? "Ver perfil" : "Ver agendamentos"}
-            onPress={n.event === "identity" ? goProfile : goBookings}
-          />
-          {!n.readAt && (
-            <Action
-              title="Marcar como lida"
-              onPress={() => run("readNotification", { notification: n.id })}
-            />
-          )}
-        </Card>
-      ))}
-    </View>
   );
 }
 function CompleteProfile() {
@@ -550,11 +518,13 @@ function Search({
     me.favorites,
   );
   const u = selected ? state!.users[selected] : null;
+  // Pacote de 2 aulas: a 2ª começa uma hora depois (50 min de aula + 10 de intervalo),
+  // no mesmo dia; por isso o horário só aparece se o seguinte também estiver livre.
   const availableSlots = (u?.slots || []).filter(
     (t) =>
       lessonCount === 1 ||
-      ((u?.slots || []).includes(t + 3600000) &&
-        dayKey(t) === dayKey(t + 3600000)),
+      ((u?.slots || []).includes(t + INTERVALO_ENTRE_AULAS_MS) &&
+        dayKey(t) === dayKey(t + INTERVALO_ENTRE_AULAS_MS)),
   );
   const days = Array.from({ length: 7 }, (_, i) => state!.now + i * 86400000);
   const activeDay = days.some((d) => dayKey(d) === chosenDay)
@@ -761,14 +731,19 @@ function Search({
           <AddressForm value={meetingAddress} onChange={setMeetingAddress} />
           <View style={s.summary}>
             <View style={s.flex}>
+              {/* Antes: lessonCount * 60 (regra antiga de 1 h), que exibia 120 min para 2 aulas. */}
               <Text style={s.small}>
                 {lessonCount}{" "}
                 {lessonCount === 1 ? "aula" : "aulas consecutivas"} ·{" "}
-                {lessonCount * 60} minutos
+                {lessonCount * DURACAO_AULA_MIN} minutos
+                {lessonCount > 1 ? ` (${lessonCount} × ${DURACAO_AULA_MIN} min)` : ""}
               </Text>
               <Text style={s.cardTitle}>
                 {activeSlot ? dateTime(activeSlot) : "Selecione data e horário"}
               </Text>
+              {!!activeSlot && (
+                <Text style={s.small}>{lessonRanges(activeSlot, lessonCount)}</Text>
+              )}
             </View>
             <Text style={s.price}>{money((u.price || 0) * lessonCount)}</Text>
           </View>
