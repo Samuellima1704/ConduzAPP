@@ -513,7 +513,7 @@ test("código de início é privado e tentativas inválidas persistem na transa�
   await settle();
   r = await call("aluno", "state");
   const code = r.result.bookings[id].startConfirmation.code;
-  assert.ok(/^\d{8}$/.test(code));
+  assert.ok(/^\d{6}$/.test(code));
   for (const role of ["instrutor", "admin"]) {
     const c = (await call(role, "state")).result.bookings[id].startConfirmation;
     assert.ok(!c.code && !c.hash && !c.secret && !c.salt);

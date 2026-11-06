@@ -49,16 +49,9 @@ import {
   canReviewPeer,
   instructorList,
   instructorDashboard,
+  bookingStatus,
+  actionable,
 } from "@/lib/presentation";
-const labels: Record<string, string> = {
-  solicitado: "Solicitação enviada",
-  aguardando_pagamento: "Aguardando pagamento",
-  confirmado: "Aula confirmada",
-  cancelado: "Cancelada",
-  concluido: "Concluída",
-  falta_aluno: "Falta do aluno",
-  falta_instrutor: "Falta do instrutor",
-};
 const protocol = (id: string) =>
   id.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
 const refundLabels: Record<string, string> = {
@@ -567,6 +560,9 @@ function Search({
           </View>
           <View style={s.row}>
             <Badge title="Credenciamento aprovado" tone="success" />
+            {!!u.busyUntil && (
+              <Badge title={`Em aula agora · até ${hourMinute(u.busyUntil)}`} tone="primary" />
+            )}
             <Text style={s.price}>
               {money(u.price)} <Text style={s.small}>/ 50 min</Text>
             </Text>
@@ -879,6 +875,10 @@ function Search({
                   {u.region || "Região não informada"}
                 </Text>
                 <RatingSummary uid={u.id} />
+                {/* Aula em andamento com este instrutor: horário ocupado agora. */}
+                {!!u.busyUntil && (
+                  <Badge title={`Em aula agora · até ${hourMinute(u.busyUntil)}`} tone="primary" />
+                )}
               </View>
               <Icon name="chevron" size={18} />
             </View>
@@ -1008,6 +1008,7 @@ function InstructorHome({
               <Text style={s.muted}>
                 {dateTime(b.start)} · {b.duration} min
               </Text>
+              {b.inProgress && <Badge {...bookingStatus(b, state!.now)} />}
             </View>
           ))
         ) : (
@@ -1025,16 +1026,7 @@ function InstructorHome({
                   {dateTime(b.start)} · {b.duration} min
                 </Text>
               </View>
-              <Badge
-                title={labels[b.status] || b.status}
-                tone={
-                  b.status === "concluido"
-                    ? "success"
-                    : b.status.startsWith("falta_")
-                      ? "danger"
-                      : "neutral"
-                }
-              />
+              <Badge {...bookingStatus(b, state!.now)} />
             </View>
           ))
         ) : (
@@ -1297,21 +1289,17 @@ function BookingCard({
           onPress={() => onProfile(other.id)}
         />
       )}
-      <Badge
-        title={labels[b.status] || b.status}
-        tone={
-          b.status === "confirmado" || b.status === "concluido"
-            ? "success"
-            : b.status === "cancelado" || b.status.startsWith("falta")
-              ? "danger"
-              : "warning"
-        }
-      />
+      {/* Situação com motivo do cancelamento e "Em andamento" (src/lib/presentation.ts). */}
+      <Badge {...bookingStatus(b, now)} />
       <View style={s.row}>
         <Text style={s.price}>{money(b.price)}</Text>
         <Text style={s.small}>
           {me.role !== "aluno" && `Comissão ${money(b.commission)} · `}
-          {b.paid ? "Pagamento confirmado" : "Aguardando pagamento"}
+          {b.paid
+            ? "Pagamento confirmado"
+            : b.status === "cancelado"
+              ? "Sem pagamento"
+              : "Aguardando pagamento"}
         </Text>
       </View>
       {!!b.groupId && (
@@ -1341,7 +1329,8 @@ function BookingCard({
       {expand && (
         <View style={s.gap}>
           <StartConfirmation booking={b} />
-          {teacher && b.status === "solicitado" && (
+          {/* Ações de aceite e pagamento só antes do início: depois disso a reserva expira. */}
+          {teacher && b.status === "solicitado" && actionable(b, now) && (
             <Action
               title="Aceitar solicitação"
               onPress={() => run("accept", { booking: b.id })}
@@ -1362,7 +1351,7 @@ function BookingCard({
                 />
               </>
             )}
-          {student && b.status === "aguardando_pagamento" && (
+          {student && b.status === "aguardando_pagamento" && actionable(b, now) && (
             <>
               <Button
                 title={"Confirmar pagamento · " + money(paymentTotal)}

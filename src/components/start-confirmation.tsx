@@ -82,9 +82,10 @@ export function StartConfirmation({ booking: b }: { booking: Booking }) {
             keyboardType="number-pad"
             maxLength={8}
           />
+          {/* Códigos novos têm 6 dígitos; os de 8 emitidos antes continuam válidos. */}
           <Button
             title="Validar código de início"
-            disabled={busy || code.length !== 8}
+            disabled={busy || !/^\d{6}(\d{2})?$/.test(code)}
             onPress={async () => {
               if (await run("confirmStart", { booking: b.id, code }))
                 setCode("");
@@ -94,6 +95,11 @@ export function StartConfirmation({ booking: b }: { booking: Booking }) {
       )}
       {c?.confirmedAt && (
         <Text>Início confirmado em {dateTime(c.confirmedAt)}</Text>
+      )}
+      {b.inProgress && (
+        <Text style={s.cardTitle}>
+          Aula em andamento até {dateTime(b.start + b.duration * 60000)}
+        </Text>
       )}
       {["expirado", "bloqueado"].includes(c?.status || "") && (
         <>

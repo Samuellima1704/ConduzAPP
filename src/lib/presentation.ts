@@ -229,3 +229,82 @@ export function friendlyError(error: unknown): string {
     return message;
   return "Não foi possível concluir agora. Confira sua conexão e tente novamente.";
 }
+const clock = (ms: number) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(ms);
+const STATUS_LABELS: Record<string, string> = {
+  solicitado: "Solicitação enviada",
+  aguardando_pagamento: "Aguardando pagamento",
+  confirmado: "Aula confirmada",
+  cancelado: "Cancelada",
+  concluido: "Concluída",
+  falta_aluno: "Falta do aluno",
+  falta_instrutor: "Falta do instrutor",
+};
+// Motivos gravados pelo servidor (functions/domain.js, CANCEL_REASONS).
+const CANCEL_LABELS: Record<string, string> = {
+  instructor_timeout: "Cancelada: prazo de resposta do instrutor expirado",
+  payment_timeout: "Cancelada: pagamento não efetuado no prazo",
+  instructor: "Cancelada pelo instrutor",
+  student: "Cancelada pelo aluno",
+};
+export type StatusTone = "primary" | "success" | "warning" | "danger" | "neutral";
+// Selo de situação da aula, com o motivo do cancelamento e o estado "Em andamento".
+export function bookingStatus(
+  b: {
+    status: string;
+    start: number;
+    duration: number;
+    instructor?: string;
+    cancelledBy?: string;
+    cancelReason?: string;
+    inProgress?: boolean;
+  },
+  now: number,
+): { title: string; tone: StatusTone } {
+  if (b.status === "cancelado") {
+    // Reservas antigas não têm cancelReason: o motivo vem de quem cancelou.
+    const reason =
+      b.cancelReason ||
+      (b.cancelledBy ? (b.cancelledBy === b.instructor ? "instructor" : "student") : "");
+    return {
+      title: CANCEL_LABELS[reason] || "Cancelada",
+      tone: reason.endsWith("_timeout") ? "neutral" : "danger",
+    };
+  }
+  if (b.status === "confirmado" && b.inProgress)
+    return {
+      title: `Em andamento · até ${clock(b.start + b.duration * 60000)}`,
+      tone: "primary",
+    };
+  // O servidor encerra no próximo acesso; até lá a tela já não oferece ações vencidas.
+  if (["solicitado", "aguardando_pagamento"].includes(b.status) && now >= b.start)
+    return { title: "Prazo encerrado", tone: "neutral" };
+  return {
+    title: STATUS_LABELS[b.status] || b.status,
+    tone: ["confirmado", "concluido"].includes(b.status)
+      ? "success"
+      : b.status.startsWith("falta")
+        ? "danger"
+        : "warning",
+  };
+}
+// Horário que ainda aceita ação de aceite/pagamento (antes do início da aula).
+export const actionable = (b: { start: number }, now: number) => now < b.start;
+const dayKey = (ms: number) => new Date(ms - 3 * 3600000).toISOString().slice(0, 10);
+// Gaveta de notificações: a partir da meia-noite (Brasília), as lidas de dias
+// anteriores saem da lista principal; as não lidas continuam até serem vistas.
+export function visibleNotifications<T extends { at: number; readAt: number | null }>(
+  list: T[],
+  now: number,
+): { current: T[]; archived: T[] } {
+  const today = dayKey(now);
+  const sorted = [...list].sort((a, b) => b.at - a.at);
+  return {
+    current: sorted.filter((n) => !n.readAt || dayKey(n.at) === today),
+    archived: sorted.filter((n) => n.readAt && dayKey(n.at) !== today),
+  };
+}

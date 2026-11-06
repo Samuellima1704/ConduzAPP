@@ -13,7 +13,7 @@ const hash = (salt, value) =>
 // Gerado no pagamento com status "aguardando"; só vira "disponivel" no horário de início.
 function issueStartCode(b) {
   const salt = randomBytes(16).toString("hex"),
-    secret = String(randomInt(10000000, 100000000));
+    secret = String(randomInt(100000, 1000000)); // 6 dígitos, fácil de ditar no encontro
   b.startConfirmation = {
     status: "aguardando",
     salt,
@@ -73,8 +73,15 @@ function updateStarts(state, now) {
   }
   return changed;
 }
+// Aula em andamento: paga, início validado pelo código e ainda antes do término.
+const inProgress = (b, now) =>
+  b.status === "confirmado" &&
+  b.paid &&
+  b.startConfirmation?.status === "confirmado" &&
+  now >= b.start &&
+  now < b.start + b.duration * 60000;
 function projectBooking(b, actor, now) {
-  const out = { ...b };
+  const out = { ...b, inProgress: inProgress(b, now) };
   if (b.startConfirmation) {
     const { secret, salt, hash, ...publicFields } = b.startConfirmation;
     out.startConfirmation = { ...publicFields };
@@ -101,7 +108,8 @@ function confirmStart(b, actor, input, now) {
   const value = String(input.code || "").slice(0, 100),
     candidate = hash(c.salt, value);
   if (
-    !/^\d{8}$/.test(value) ||
+    // 6 dígitos; códigos de 8 emitidos antes da mudança continuam válidos.
+    !/^\d{6}(\d{2})?$/.test(value) ||
     !timingSafeEqual(Buffer.from(candidate, "hex"), Buffer.from(c.hash, "hex"))
   ) {
     c.attempts++;
@@ -150,6 +158,7 @@ function setDemoClock(s, actor, input, now, trusted) {
   s.demo.clockUpdatedAt = trusted.realNow;
 }
 module.exports = {
+  inProgress,
   issueStartCode,
   updateStarts,
   projectBooking,

@@ -248,7 +248,7 @@ test("código nasce no pagamento, só o aluno recebe o segredo e a validação a
   const early = execute(s, student, "state", {}, time - 1).result.bookings
     .operation.startConfirmation;
   assert.equal(early.status, "aguardando");
-  assert.ok(/^\d{8}$/.test(early.code));
+  assert.ok(/^\d{6}$/.test(early.code));
   assert.equal(
     execute(s, teacher, "state", {}, time - 1).result.bookings.operation
       .startConfirmation.code,
@@ -876,7 +876,7 @@ test("código gerado no pagamento não valida antes do início e é renovado na 
   assert.equal(c.availableAt, now + DAY + 2 * HOUR);
   const after = execute(s, student, "state", {}, now).result.bookings.operation
     .startConfirmation.code;
-  assert.ok(/^\d{8}$/.test(after));
+  assert.ok(/^\d{6}$/.test(after));
   assert.notEqual(c.hash, undefined);
 });
 test("dashboard do instrutor resume agenda, histórico e valores líquidos simulados", () => {
@@ -991,4 +991,110 @@ test("cache de leitura expira no prazo e fila executa escritas do mesmo document
   assert.equal(results[1].status, "rejected"); // falha não trava a fila
   assert.equal(results[2].value, "c");
   assert.ok(peak <= 2); // no máximo uma por documento (+1 de outro documento)
+});
+// Ciclo de vida: expiração com motivo, remarcação notificada e aula em andamento.
+const notesOf = (s, uid, event) =>
+  Object.values(s.notifications).filter((n) => n.recipient === uid && (!event || n.event === event));
+test("solicitação não aceita até o início expira com motivo e avisa aluno e instrutor", () => {
+  const start = now + DAY;
+  const r = execute(booked(), student, "state", {}, start);
+  const b = r.state.bookings.operation;
+  assert.equal(r.write, true);
+  assert.equal(b.status, "cancelado");
+  assert.equal(b.cancelReason, "instructor_timeout");
+  assert.equal(b.refundStatus, "nao_aplicavel");
+  assert.match(notesOf(r.state, "s", "expired")[0].title, /21\/10 às 09:00 cancelada: o instrutor não respondeu a tempo/);
+  assert.match(notesOf(r.state, "t", "expired")[0].title, /perdido: a solicitação não foi aceita/);
+  // O aceite tardio é recusado e a tela mostra o motivo, sem botão de aceite.
+  assert.throws(() => act(r.state, teacher, "accept", { booking: "operation" }, start), /processada ou expirada/);
+  assert.deepEqual(ux.bookingStatus(r.result.bookings.operation, start), {
+    title: "Cancelada: prazo de resposta do instrutor expirado",
+    tone: "neutral",
+  });
+  assert.equal(ux.actionable(b, start), false);
+  // O horário volta a ficar livre para outro aluno.
+  assert.ok(act(r.state, { uid: "o" }, "book", { instructor: "t", start: start + DAY }, start));
+  // Expirar de novo não duplica avisos.
+  const again = execute(r.state, student, "state", {}, start + HOUR);
+  assert.equal(again.write, false);
+  assert.equal(notesOf(again.state, "s", "expired").length, 1);
+});
+test("aula aceita e não paga até o início expira por falta de pagamento", () => {
+  const start = now + DAY;
+  const accepted = act(booked(), teacher, "accept", { booking: "operation" });
+  const s = execute(accepted, teacher, "state", {}, start).state;
+  assert.equal(s.bookings.operation.cancelReason, "payment_timeout");
+  assert.match(notesOf(s, "s", "expired")[0].title, /cancelada: pagamento não efetuado no prazo/);
+  assert.match(notesOf(s, "t", "expired")[0].title, /perdido: o aluno não pagou antes do horário/);
+  assert.equal(ux.bookingStatus(s.bookings.operation, start).title, "Cancelada: pagamento não efetuado no prazo");
+  // Aula paga não expira: o pagamento confirma a reserva.
+  assert.equal(execute(paid(), student, "state", {}, start).state.bookings.operation.status, "confirmado");
+});
+test("cancelamento registra quem cancelou e a tela mostra o motivo", () => {
+  const byStudent = act(paid(), student, "cancel", { booking: "operation" });
+  assert.equal(byStudent.bookings.operation.cancelReason, "student");
+  assert.equal(ux.bookingStatus(byStudent.bookings.operation, now).title, "Cancelada pelo aluno");
+  assert.match(notesOf(byStudent, "t", "cancel")[0].title, /cancelada pelo aluno/);
+  const byTeacher = act(paid(), teacher, "cancel", { booking: "operation" });
+  assert.equal(ux.bookingStatus(byTeacher.bookings.operation, now).title, "Cancelada pelo instrutor");
+  // Reservas antigas sem motivo gravado: deduzido de quem cancelou.
+  assert.equal(
+    ux.bookingStatus({ status: "cancelado", start: now, duration: 50, instructor: "t", cancelledBy: "t" }, now).title,
+    "Cancelada pelo instrutor",
+  );
+});
+test("remarcação: aceite avisa o aluno com a nova data; recusa mantém o horário e avisa", () => {
+  const original = now + DAY,
+    proposed = now + DAY + 2 * HOUR;
+  const proposal = act(paid(), student, "propose", { booking: "operation", start: proposed }, now, "p1");
+  assert.match(notesOf(proposal, "t", "propose")[0].title, /Pedido de remarcação para 21\/10 às 11:00/);
+  const accepted = act(proposal, teacher, "reschedule", { booking: "operation", accept: true }, now, "r1");
+  assert.equal(accepted.bookings.operation.start, proposed);
+  assert.equal(notesOf(accepted, "s", "reschedule")[0].title, "Remarcação aceita: aula agora em 21/10 às 11:00");
+  assert.equal(notesOf(accepted, "t", "reschedule").length, 0);
+  const refused = act(proposal, teacher, "reschedule", { booking: "operation", accept: false }, now, "r2");
+  assert.equal(refused.bookings.operation.start, original);
+  assert.equal(refused.bookings.operation.status, "confirmado");
+  assert.equal(refused.bookings.operation.proposal, null);
+  assert.equal(notesOf(refused, "s", "reschedule")[0].title, "Remarcação recusada: a aula continua em 21/10 às 09:00");
+});
+test("código de 6 dígitos valida o início e a aula fica em andamento até o fim dos 50 min", () => {
+  const start = now + DAY;
+  let r = execute(paid(), student, "state", {}, start);
+  const code = r.result.bookings.operation.startConfirmation.code;
+  assert.match(code, /^\d{6}$/);
+  assert.equal(r.result.bookings.operation.inProgress, false); // início ainda não validado
+  let s = act(r.state, teacher, "confirmStart", { booking: "operation", code }, start + 2 * 60000);
+  for (const a of [student, teacher]) {
+    const b = execute(s, a, "state", {}, start + 30 * 60000).result.bookings.operation;
+    assert.equal(b.inProgress, true);
+    assert.equal(ux.bookingStatus(b, start + 30 * 60000).title, "Em andamento · até 09:50");
+  }
+  // Outra aluna vê o instrutor ocupado até o fim da aula.
+  assert.equal(execute(s, { uid: "o" }, "state", {}, start + 30 * 60000).result.users.t.busyUntil, start + 50 * 60000);
+  const after = execute(s, { uid: "o" }, "state", {}, start + 50 * 60000).result;
+  assert.equal(after.users.t.busyUntil, null);
+  assert.equal(execute(s, teacher, "state", {}, start + 50 * 60000).result.bookings.operation.inProgress, false);
+  // Código de 8 dígitos emitido antes da mudança continua aceito.
+  const legacy = execute(paid(), student, "state", {}, start).state;
+  const { createHash } = require("node:crypto");
+  Object.assign(legacy.bookings.operation.startConfirmation, {
+    salt: "x",
+    hash: createHash("sha256").update("x:12345678").digest("hex"),
+  });
+  const ok = act(legacy, teacher, "confirmStart", { booking: "operation", code: "12345678" }, start);
+  assert.equal(ok.bookings.operation.startConfirmation.status, "confirmado");
+});
+test("gaveta mostra o dia corrente e as não lidas; lidas de dias anteriores ficam arquivadas", () => {
+  const today = Date.parse("2026-10-20T10:00:00-03:00");
+  const list = [
+    { id: "hoje-lida", at: today - HOUR, readAt: today },
+    { id: "ontem-nao-lida", at: today - DAY, readAt: null },
+    { id: "ontem-lida", at: today - DAY, readAt: today - DAY },
+    { id: "madrugada", at: Date.parse("2026-10-20T00:05:00-03:00"), readAt: today },
+    { id: "antes-meia-noite", at: Date.parse("2026-10-19T23:55:00-03:00"), readAt: today },
+  ];
+  const { current, archived } = ux.visibleNotifications(list, today);
+  assert.deepEqual(current.map((n) => n.id), ["hoje-lida", "madrugada", "ontem-nao-lida"]);
+  assert.deepEqual(archived.map((n) => n.id), ["antes-meia-noite", "ontem-lida"]);
 });

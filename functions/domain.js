@@ -8,6 +8,7 @@ const {
 } = require("./identity");
 const { address, formatAddress } = require("./address");
 const {
+  inProgress,
   issueStartCode,
   updateStarts,
   projectBooking,
@@ -84,15 +85,87 @@ function conversations(state) {
       : "SEM AGENDAMENTO";
   return result;
 }
+// Data e hora de Brasília para textos de notificação (ex.: "12/11 às 14:00").
+const whenText = (ms) => {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(ms);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  return `${get("day")}/${get("month")} às ${get("hour")}:${get("minute")}`;
+};
+// Motivos de cancelamento gravados na reserva (exibidos pelo app).
+const CANCEL_REASONS = {
+  instructor_timeout: "Prazo de resposta do instrutor expirado",
+  payment_timeout: "Pagamento não efetuado no prazo",
+  instructor: "Cancelada pelo instrutor",
+  student: "Cancelada pelo aluno",
+};
+// Encerra automaticamente o que passou do horário sem ter sido concluído no fluxo:
+// solicitação não aceita ou aula aceita e não paga até o início. Libera o horário
+// (status cancelado não ocupa agenda) e avisa aluno e instrutor do motivo.
+function expireBookings(state, now) {
+  let changed = false;
+  for (const b of Object.values(state.bookings)) {
+    if (now < b.start) continue;
+    const reason =
+      b.status === "solicitado"
+        ? "instructor_timeout"
+        : b.status === "aguardando_pagamento"
+          ? "payment_timeout"
+          : null;
+    if (!reason) continue;
+    Object.assign(b, {
+      status: "cancelado",
+      cancelReason: reason,
+      cancelledAt: now,
+      refund: 0,
+      refundStatus: "nao_aplicavel",
+      payoutEligible: false,
+      proposal: null,
+    });
+    const texts =
+      reason === "instructor_timeout"
+        ? {
+            student: `Aula de ${whenText(b.start)} cancelada: o instrutor não respondeu a tempo`,
+            instructor: `Agendamento de ${whenText(b.start)} perdido: a solicitação não foi aceita antes do horário`,
+          }
+        : {
+            student: `Aula de ${whenText(b.start)} cancelada: pagamento não efetuado no prazo`,
+            instructor: `Agendamento de ${whenText(b.start)} perdido: o aluno não pagou antes do horário`,
+          };
+    for (const role of ["student", "instructor"]) {
+      const nid = `${b.id}_expired_${b[role]}`;
+      state.notifications[nid] = {
+        id: nid,
+        recipient: b[role],
+        booking: b.id,
+        event: "expired",
+        title: texts[role],
+        at: now,
+        readAt: null,
+      };
+    }
+    changed = true;
+  }
+  return changed;
+}
 function bookingNotifications(state, actor, op, input, id, now) {
   const events = {
     book: ["Nova solicitação recebida", "instructor"],
     accept: ["Solicitação aceita: aguardando pagamento", "student"],
     pay: ["Aula confirmada: pagamento registrado", "both"],
-    cancel: ["Aula cancelada", "other"],
-    propose: ["Pedido de remarcação recebido", "other"],
+    cancel: [(b) => `Aula de ${whenText(b.start)} ${CANCEL_REASONS[b.cancelReason]?.toLowerCase() || "cancelada"}`, "other"],
+    propose: [(b) => `Pedido de remarcação para ${whenText(b.proposal.start)}`, "other"],
+    // Quem propôs recebe a resposta; o aceite traz a nova data, a recusa mantém a original.
     reschedule: [
-      input.accept ? "Remarcação aceita" : "Remarcação recusada",
+      (b) =>
+        input.accept
+          ? `Remarcação aceita: aula agora em ${whenText(b.start)}`
+          : `Remarcação recusada: a aula continua em ${whenText(b.start)}`,
       "other",
     ],
     complete: ["Aula concluída: avaliação disponível", "student"],
@@ -121,7 +194,7 @@ function bookingNotifications(state, actor, op, input, id, now) {
       recipient,
       booking: booking.id,
       event: op,
-      title: event[0],
+      title: typeof event[0] === "function" ? event[0](booking) : event[0],
       at: now,
       readAt: null,
     };
@@ -308,6 +381,13 @@ function view(state, actor, now) {
         eligible: approved(u, now),
         featured: featured === true,
         slots: approved(u, now) ? slots(state, id, now) : [],
+        // Instrutor com aula em andamento agora: o horário aparece ocupado para outros alunos.
+        busyUntil:
+          u.role === "instrutor"
+            ? Object.values(state.bookings)
+                .filter((b) => b.instructor === id && inProgress(b, now))
+                .map((b) => b.start + b.duration * 60000)[0] || null
+            : null,
       };
     }
   }
@@ -360,7 +440,10 @@ function execute(
   const s = structuredClone(original || empty());
   s.conversations = conversations(s);
   s.notifications ||= {};
+  // Transições automáticas por horário: código de início e expiração de prazos.
   const startsChanged = updateStarts(s, now);
+  const expired = expireBookings(s, now);
+  const autoChanged = startsChanged || expired;
   let operationError;
   const me = s.users[actor.uid];
   const extraNotificationBookings = [];
@@ -368,7 +451,7 @@ function execute(
     check(actor.admin === true, "Acesso exclusivo da administração.");
   const user = () => check(!!me, "Complete seu cadastro.");
   if (op === "state")
-    return { state: s, result: view(s, actor, now), write: startsChanged };
+    return { state: s, result: view(s, actor, now), write: autoChanged };
   if (op === "register") {
     check(!me, "Perfil já cadastrado.");
     check(["aluno", "instrutor"].includes(input.role), "Perfil inválido.");
@@ -452,7 +535,7 @@ function execute(
             return {
               state: s,
               result: view(s, actor, now),
-              write: startsChanged,
+              write: autoChanged,
             };
           operationError = confirmStart(b, actor, input, now);
           break;
@@ -648,6 +731,7 @@ function execute(
             refund: b.paid ? Math.round(b.price * rate) : 0,
             refundStatus: b.paid ? "pendente_simulado" : "nao_aplicavel",
             cancelledBy: actor.uid,
+            cancelReason: byInstructor ? "instructor" : "student",
             payoutEligible: false,
             proposal: null,
           });
@@ -955,7 +1039,7 @@ function execute(
               previous.to === input.to && previous.text === text(input.text),
               "Identificador de envio já utilizado para outra mensagem.",
             );
-            return { state: s, result: view(s, actor, now), write: false };
+            return { state: s, result: view(s, actor, now), write: autoChanged };
           }
           check(s.messages.length < 1500, "Limite de mensagens atingido. Fale com o suporte.");
           s.conversations[c.id] ||= { ...c, createdAt: now };
@@ -1009,4 +1093,6 @@ module.exports = {
   DAY,
   LESSON_MIN,
   COMMISSION_PERCENT,
+  CANCEL_REASONS,
+  whenText,
 };

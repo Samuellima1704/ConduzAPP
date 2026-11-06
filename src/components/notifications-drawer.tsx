@@ -15,6 +15,7 @@ import { useSession, dateTime } from "@/services/session";
 import { ThemedText as Text } from "@/components/themed-text";
 import { Icon } from "@/components/ui/icon";
 import { UI } from "@/constants/theme";
+import { visibleNotifications } from "@/lib/presentation";
 
 const DURATION_MS = 220;
 
@@ -38,6 +39,7 @@ export function NotificationsDrawer({
   const progress = useRef(new Animated.Value(0)).current;
   // Mantém a gaveta montada até a animação de saída terminar.
   const [mounted, setMounted] = useState(open);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     if (open) setMounted(true);
@@ -59,8 +61,13 @@ export function NotificationsDrawer({
   }, [open, onClose]);
 
   if (!mounted) return null;
-  const list = Object.values(state?.notifications || {}).sort((a, b) => b.at - a.at);
-  const unread = list.filter((n) => !n.readAt);
+  // Limpeza diária: as lidas de dias anteriores saem da lista na virada da meia-noite.
+  const { current, archived } = visibleNotifications(
+    Object.values(state?.notifications || {}),
+    state?.now ?? Date.now(),
+  );
+  const list = showArchived ? [...current, ...archived] : current;
+  const unread = current.filter((n) => !n.readAt);
 
   // Abrir um aviso marca como lido e leva à tela relacionada.
   async function openItem(n: (typeof list)[number]) {
@@ -130,7 +137,7 @@ export function NotificationsDrawer({
           {!list.length && (
             <View style={s.empty}>
               <Icon name="bell" size={28} color={UI.color.textSecondary} />
-              <Text style={s.subtitle}>Nenhuma notificação por enquanto.</Text>
+              <Text style={s.subtitle}>Nenhuma notificação hoje.</Text>
             </View>
           )}
           {list.map((n) => (
@@ -152,6 +159,19 @@ export function NotificationsDrawer({
               <Icon name="chevron" size={14} color={UI.color.textSecondary} />
             </TouchableOpacity>
           ))}
+          {archived.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowArchived(!showArchived)}
+              accessibilityRole="button"
+              style={s.archivedToggle}
+            >
+              <Text style={s.link}>
+                {showArchived
+                  ? "Ocultar notificações anteriores"
+                  : `Ver anteriores já lidas (${archived.length})`}
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </Animated.View>
     </View>
@@ -200,6 +220,7 @@ const s = StyleSheet.create({
   link: { color: UI.color.primary, fontSize: 13, fontWeight: "700" },
   list: { gap: 6, paddingBottom: 8 },
   empty: { alignItems: "center", gap: 8, paddingVertical: 48 },
+  archivedToggle: { alignSelf: "center", paddingVertical: 12 },
   item: {
     flexDirection: "row",
     alignItems: "center",

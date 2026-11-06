@@ -205,9 +205,9 @@ async function run() {
     const st = await alu.call("pay", { booking: b1.id });
     const b = st.bookings[b1.id];
     assert(b.status === "confirmado" && b.paid, "pagamento não confirmou");
-    assert(/^\d{8}$/.test(b.startConfirmation?.code || ""), "aluno não recebeu o código");
+    assert(/^\d{6}$/.test(b.startConfirmation?.code || ""), "aluno não recebeu o código");
     assert(b.startConfirmation.status === "aguardando", "código deveria aguardar o início");
-    return "código de 8 dígitos gerado no pagamento";
+    return "código de 6 dígitos gerado no pagamento";
   });
   await step("Código de início", "Instrutor não recebe o código", async () => {
     const st = await ins.call("state");
@@ -231,6 +231,13 @@ async function run() {
     const st = await ins.call("confirmStart", { booking: b1.id, code });
     assert(st.bookings[b1.id].startConfirmation.status === "confirmado", "não confirmou");
     return "1 erro, depois confirmado";
+  });
+  await step("Em andamento", "Aula validada fica em andamento e o instrutor aparece ocupado", async () => {
+    const st = await alu.call("state");
+    assert(st.bookings[b1.id].inProgress === true, "aula não ficou em andamento");
+    const other = await out.call("state");
+    assert(other.users[people.instrutor.uid].busyUntil === b1.start + 50 * 60000, "outra aluna não vê o instrutor ocupado");
+    return "ocupado até o fim dos 50 min";
   });
   await step("Conclusão", "Concluir antes do término é recusado", () =>
     ins.fail("complete", { booking: b1.id }, /término/));
@@ -292,7 +299,22 @@ async function run() {
     const st = await out.call("reschedule", { booking: b.id, accept: true });
     const after = st.bookings[b.id];
     assert(after.start === newStart && after.startConfirmation.code !== before, "remarcação não renovou o código");
+    const aviso = Object.values((await ins.call("state")).notifications).find((n) => n.event === "reschedule");
+    assert(/Remarcação aceita: aula agora em \d{2}\/\d{2} às \d{2}:\d{2}/.test(aviso?.title || ""), "aviso sem a nova data");
     return "novo horário e novo código";
+  });
+  await step("Expiração", "Solicitação não aceita até o início é cancelada com motivo", async () => {
+    const busy = Object.values((await ins.call("state")).bookings).filter((x) => x.status !== "cancelado").map((x) => x.start);
+    const start = slots.find((s) => s >= Date.now() + 26 * HOUR && busy.every((t) => Math.abs(t - s) >= HOUR));
+    const st = await alu.call("book", { instructor: people.instrutor.uid, start, address: addr });
+    const b = Object.values(st.bookings).find((x) => x.start === start && x.status === "solicitado");
+    await adm.call("setDemoClock", { booking: b.id, stage: "start" });
+    const after = (await alu.call("state")).bookings[b.id];
+    await adm.call("setDemoClock", { stage: "reset" });
+    assert(after.status === "cancelado" && after.cancelReason === "instructor_timeout", "não expirou com o motivo");
+    const avisos = Object.values((await ins.call("state")).notifications).filter((n) => n.booking === b.id && n.event === "expired");
+    assert(avisos.length === 1, "instrutor não foi avisado");
+    return "cancelada: prazo de resposta do instrutor expirado";
   });
   await step("Cancelamento", "Aluno cancela com mais de 2 h: estorno integral", async () => {
     const busy = Object.values((await ins.call("state")).bookings)
@@ -300,7 +322,7 @@ async function run() {
       .map((x) => x.start);
     const start = slots.find((s) => s >= Date.now() + 30 * HOUR && busy.every((t) => Math.abs(t - s) >= HOUR));
     const st = await alu.call("book", { instructor: people.instrutor.uid, start, address: addr });
-    const b = Object.values(st.bookings).find((x) => x.start === start);
+    const b = Object.values(st.bookings).find((x) => x.start === start && x.status === "solicitado");
     await ins.call("accept", { booking: b.id });
     await alu.call("pay", { booking: b.id });
     const done = await alu.call("cancel", { booking: b.id });

@@ -35,6 +35,8 @@ export type Profile = {
   photoPath?: string | null;
   eligible?: boolean;
   featured?: boolean;
+  // Fim da aula em andamento do instrutor (null quando livre).
+  busyUntil?: number | null;
   identity?: {
     status: string;
     photoPath?: string;
@@ -85,6 +87,11 @@ export type Booking = {
   disputeOpen?: boolean;
   refund?: number;
   refundStatus?: string;
+  cancelledBy?: string;
+  // instructor_timeout | payment_timeout | instructor | student
+  cancelReason?: string;
+  // Calculado pelo servidor: pago, início validado e antes do término.
+  inProgress?: boolean;
 };
 export type Review = {
   id: string;
