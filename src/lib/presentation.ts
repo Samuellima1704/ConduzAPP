@@ -308,3 +308,68 @@ export function visibleNotifications<T extends { at: number; readAt: number | nu
     archived: sorted.filter((n) => n.readAt && dayKey(n.at) !== today),
   };
 }
+// ---------------------------------------------------------------------------
+// Calendário de disponibilidade do instrutor.
+// Mantém o formato salvo no servidor: grade semanal (periods) + datas de folga
+// (blocks, "AAAA-MM-DD"). Datas sempre no calendário de Brasília.
+// ---------------------------------------------------------------------------
+export type CalendarDay = {
+  date: string; // AAAA-MM-DD
+  day: number;
+  weekday: number; // 0 = domingo
+  inMonth: boolean;
+  past: boolean;
+  workday: boolean; // a grade semanal tem horário neste dia da semana
+  blocked: boolean; // folga marcada
+  lessons: number; // aulas ativas marcadas no dia
+};
+// Grade de 6 semanas (domingo a sábado) do mês, com o estado de cada dia.
+export function availabilityMonth(
+  year: number,
+  month0: number,
+  ctx: {
+    periods: { day: number }[];
+    blocks: string[];
+    bookings: { start: number; status: string }[];
+    now: number;
+  },
+): CalendarDay[] {
+  const today = dayKey(ctx.now);
+  const blocked = new Set(ctx.blocks);
+  const workdays = new Set(ctx.periods.map((p) => p.day));
+  const lessons: Record<string, number> = {};
+  for (const b of ctx.bookings)
+    if (["solicitado", "aguardando_pagamento", "confirmado"].includes(b.status))
+      lessons[dayKey(b.start)] = (lessons[dayKey(b.start)] || 0) + 1;
+  const firstWeekday = new Date(Date.UTC(year, month0, 1)).getUTCDay();
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(Date.UTC(year, month0, 1 - firstWeekday + i));
+    const date = d.toISOString().slice(0, 10);
+    return {
+      date,
+      day: d.getUTCDate(),
+      weekday: d.getUTCDay(),
+      inMonth: d.getUTCMonth() === month0,
+      past: date < today,
+      workday: workdays.has(d.getUTCDay()),
+      blocked: blocked.has(date),
+      lessons: lessons[date] || 0,
+    };
+  });
+}
+// Alterna a folga de um dia, mantendo a lista ordenada e sem datas passadas.
+export function toggleBlock(blocks: string[], date: string, now: number): string[] {
+  const today = dayKey(now);
+  const set = new Set(blocks.filter((d) => d >= today));
+  if (set.has(date)) set.delete(date);
+  else set.add(date);
+  return [...set].sort();
+}
+// Mês corrente em Brasília, para abrir o calendário no mês certo.
+export function currentMonth(now: number) {
+  const [y, m] = dayKey(now).split("-").map(Number);
+  return { year: y, month0: m - 1 };
+}
+// Folgas de hoje em diante (as passadas não afetam reservas e não precisam ser salvas).
+export const futureBlocks = (blocks: string[], now: number) =>
+  blocks.filter((d) => d >= dayKey(now)).sort();

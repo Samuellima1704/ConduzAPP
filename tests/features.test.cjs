@@ -1098,3 +1098,45 @@ test("gaveta mostra o dia corrente e as não lidas; lidas de dias anteriores fic
   assert.deepEqual(current.map((n) => n.id), ["hoje-lida", "madrugada", "ontem-nao-lida"]);
   assert.deepEqual(archived.map((n) => n.id), ["antes-meia-noite", "ontem-lida"]);
 });
+test("calendário do instrutor mostra datas reais com expediente, folga, aulas e dias passados", () => {
+  const hoje = Date.parse("2026-11-06T10:00:00-03:00"); // sexta-feira
+  const days = ux.availabilityMonth(2026, 10, {
+    periods: [1, 2, 3, 4, 5].map((day) => ({ day, from: 8, to: 18 })),
+    blocks: ["2026-11-20"],
+    bookings: [
+      { start: Date.parse("2026-11-10T14:00:00-03:00"), status: "confirmado" },
+      { start: Date.parse("2026-11-10T15:00:00-03:00"), status: "solicitado" },
+      { start: Date.parse("2026-11-10T16:00:00-03:00"), status: "cancelado" },
+    ],
+    now: hoje,
+  });
+  assert.equal(days.length, 42);
+  assert.equal(days[0].weekday, 0); // grade começa no domingo
+  const byDate = Object.fromEntries(days.map((d) => [d.date, d]));
+  assert.equal(days.filter((d) => d.inMonth).length, 30);
+  assert.equal(byDate["2026-11-01"].weekday, 0);
+  assert.equal(byDate["2026-11-05"].past, true);
+  assert.equal(byDate["2026-11-06"].past, false); // hoje ainda aceita folga
+  assert.equal(byDate["2026-11-09"].workday, true); // segunda
+  assert.equal(byDate["2026-11-08"].workday, false); // domingo sem expediente
+  assert.equal(byDate["2026-11-20"].blocked, true);
+  assert.equal(byDate["2026-11-10"].lessons, 2); // cancelada não conta
+  // Alternar folga: inclui, remove, ordena e descarta datas passadas.
+  let blocks = ux.toggleBlock(["2026-11-01", "2026-11-20"], "2026-11-12", hoje);
+  assert.deepEqual(blocks, ["2026-11-12", "2026-11-20"]);
+  blocks = ux.toggleBlock(blocks, "2026-11-20", hoje);
+  assert.deepEqual(blocks, ["2026-11-12"]);
+  assert.deepEqual(ux.futureBlocks(["2026-11-30", "2026-10-01", "2026-11-06"], hoje), ["2026-11-06", "2026-11-30"]);
+});
+test("folga marcada pelo calendário usa o formato salvo e remove os horários daquele dia", () => {
+  const dia = new Date(now + DAY - 3 * HOUR).toISOString().slice(0, 10);
+  let s = act(fixture(), teacher, "availability", {
+    periods: Array.from({ length: 7 }, (_, day) => ({ day, from: 8, to: 20 })),
+    blocks: ux.toggleBlock([], dia, now),
+  });
+  assert.deepEqual(s.users.t.blocks, [dia]);
+  const livres = execute(s, student, "state", {}, now).result.users.t.slots;
+  assert.ok(livres.length > 0);
+  assert.ok(livres.every((t) => new Date(t - 3 * HOUR).toISOString().slice(0, 10) !== dia));
+  assert.throws(() => act(s, student, "book", { instructor: "t", start: now + DAY }), /disponibilidade/);
+});

@@ -41,6 +41,7 @@ import {
 import { AddressForm } from "@/components/address-form";
 import { StartConfirmation } from "@/components/start-confirmation";
 import { NotificationsDrawer } from "@/components/notifications-drawer";
+import { AvailabilityCalendar } from "@/components/availability-calendar";
 import { emptyAddress } from "@/lib/cep";
 import {
   homeTab,
@@ -51,6 +52,8 @@ import {
   instructorDashboard,
   bookingStatus,
   actionable,
+  toggleBlock,
+  futureBlocks,
 } from "@/lib/presentation";
 const protocol = (id: string) =>
   id.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
@@ -1106,8 +1109,9 @@ function InstructorHome({
 function Availability() {
   const { state, run } = useSession();
   const me = state!.me!;
+  // blocks: datas de folga "AAAA-MM-DD" (mesmo formato salvo no servidor).
   const [periods, setPeriods] = useState(me.periods || []),
-    [blocks, setBlocks] = useState((me.blocks || []).join(", "));
+    [blocks, setBlocks] = useState<string[]>(me.blocks || []);
   const [day, setDay] = useState(1),
     [from, setFrom] = useState("8"),
     [to, setTo] = useState("12");
@@ -1164,20 +1168,28 @@ function Availability() {
           </TouchableOpacity>
         </View>
       ))}
-      <Input
-        label="Bloquear datas (AAAA-MM-DD, separadas por vírgula)"
-        value={blocks}
-        onChangeText={setBlocks}
+      {/* Exceções por data: o calendário substitui a digitação de datas em formato ISO. */}
+      <View style={s.gapSmall}>
+        <Text style={s.cardTitle}>Folgas e feriados</Text>
+        <Text style={s.small}>
+          Toque num dia para marcar ou desmarcar folga. A grade semanal acima
+          continua valendo nos demais dias.
+        </Text>
+      </View>
+      <AvailabilityCalendar
+        periods={periods}
+        blocks={blocks}
+        bookings={Object.values(state!.bookings).filter((b) => b.instructor === me.id)}
+        now={state!.now}
+        onToggle={(date) => setBlocks(toggleBlock(blocks, date, state!.now))}
       />
       <Button
         title="Salvar disponibilidade"
         onPress={() =>
           run("availability", {
             periods,
-            blocks: blocks
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
+            // Folgas passadas não afetam reservas; ficam fora para não acumular.
+            blocks: futureBlocks(blocks, state!.now),
           })
         }
       />
