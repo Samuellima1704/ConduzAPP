@@ -26,6 +26,8 @@ test("CORS das fotos permite leitura nas origens HTTPS do app e preserva configu
   assert.deepEqual(cors[1].origin, [
     "https://conduzapp-cors-test.web.app",
     "https://conduzapp-cors-test.firebaseapp.com",
+    "https://conduzapp.web.app",
+    "https://conduzapp.firebaseapp.com",
   ]);
   assert.deepEqual(cors[1].method, ["GET", "HEAD"]);
   assert.deepEqual(storageCors("conduzapp-cors-test", cors), cors);

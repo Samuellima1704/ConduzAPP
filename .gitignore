@@ -51,6 +51,15 @@ example
 firebase-export-*/
 functions/node_modules/
 
+# Builds e publicação (gerados; não versionar)
+*.apk
+*.aab
+*.ipa
+.vercel/
+.netlify/
+.firebase/
+*.log
+
 # Prevent accidental publication of secrets
 .env
 .env.*

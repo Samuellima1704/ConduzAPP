@@ -104,6 +104,9 @@ function storageCors(projectId, existing = []) {
   const origins = [
     `https://${projectId}.web.app`,
     `https://${projectId}.firebaseapp.com`,
+    // Site do Hosting com o nome do app (firebase.cloud.json, "site": "conduzapp").
+    "https://conduzapp.web.app",
+    "https://conduzapp.firebaseapp.com",
   ];
   if (
     existing.some(

@@ -2,7 +2,7 @@
 
 Aplicativo Expo/React Native com três perfis, Firebase local com dados persistentes e pagamentos simulados no backend.
 
-Preparação do ambiente compartilhado online: [instruções e status](docs/AMBIENTE_ONLINE.md). O modo local continua padrão. A publicação online depende de projeto Firebase, faturamento e validação real; tornar o GitHub público não publica o banco nem o aplicativo.
+Publicação na web (conduzapp.web.app), no celular (Expo Go e APK) e do backend: [guia de deploy](docs/DEPLOY.md). Histórico da preparação online: [ambiente online](docs/AMBIENTE_ONLINE.md). O modo local continua padrão. A publicação online depende de projeto Firebase, faturamento e validação real; tornar o GitHub público não publica o banco nem o aplicativo.
 
 ## Executar neste notebook
 

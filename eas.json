@@ -1,0 +1,24 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_FIREBASE_MODE": "emulator" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "environment": "preview",
+      "env": { "EXPO_PUBLIC_FIREBASE_MODE": "cloud-demo" }
+    },
+    "production": {
+      "environment": "production",
+      "android": { "buildType": "app-bundle" },
+      "env": { "EXPO_PUBLIC_FIREBASE_MODE": "cloud-demo" }
+    }
+  }
+}
