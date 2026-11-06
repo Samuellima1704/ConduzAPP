@@ -1,4 +1,4 @@
-# ConduzAPP — recuperação do TCC
+# ConduzAPP — TCC
 
 Aplicativo Expo/React Native com três perfis, Firebase local com dados persistentes e pagamentos simulados no backend.
 
