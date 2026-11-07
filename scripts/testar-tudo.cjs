@@ -110,7 +110,7 @@ async function run() {
   await step("Cadastro", "Aluno, aluna e instrutor se cadastram", async () => {
     await alu.call("register", { name: people.aluno.name, role: "aluno" });
     await out.call("register", { name: people.outro.name, role: "aluno" });
-    await ins.call("register", { name: people.instrutor.name, role: "instrutor", credential: "AUT-TESTE-001" });
+    await ins.call("register", { name: people.instrutor.name, role: "instrutor", credential: "RJ000000001" });
     return "3 perfis criados";
   });
   await step("Cadastro", "Conta não verificada não consegue reservar", () =>
@@ -150,7 +150,7 @@ async function run() {
 
   // 2. Instrutor
   await step("Instrutor", "Credencial, preço e disponibilidade", async () => {
-    await ins.call("credential", { credential: "AUT-TESTE-001", expires: Date.now() + 90 * 24 * HOUR });
+    await ins.call("credential", { credential: "RJ000000001", expires: Date.now() + 90 * 24 * HOUR });
     await ins.call("profile", { name: people.instrutor.name, region: "Centro · Volta Redonda", price: 8500, car: "Carro de teste", transmission: "Manual", bio: "Instrutor de teste", specialty: "Baliza" });
     await ins.call("availability", { periods: Array.from({ length: 7 }, (_, day) => ({ day, from: 6, to: 22 })), blocks: [] });
     return "R$ 85,00 · 06h–22h todos os dias";

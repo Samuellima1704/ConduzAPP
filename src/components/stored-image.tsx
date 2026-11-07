@@ -41,13 +41,9 @@ export function StoredImage({
             setFailed(false);
           }
         })
-        .catch((error: { code?: string }) => {
-          if (alive) {
-            setFailed(true);
-            console.warn("[ConduzAPP imagem] falha na leitura do Storage", {
-              codigo: error?.code || "erro-local",
-            });
-          }
+        .catch(() => {
+          // A falha aparece na própria tela (estado "failed"), sem log no console.
+          if (alive) setFailed(true);
         })
         .finally(() => clearTimeout(timeout));
     }

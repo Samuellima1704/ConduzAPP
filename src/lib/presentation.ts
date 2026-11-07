@@ -221,12 +221,14 @@ export function friendlyError(error: unknown): string {
     message?: string;
   };
   const kind = code.replace(/^functions\//, "");
+  // O SDK/emulador pode anexar o status HTTP ("... [400]"): o usuário não vê códigos técnicos.
+  const text = message.replace(/\s*\[\d{3}\]\s*$/, "").trim();
   if (
     ["failed-precondition", "permission-denied", "unauthenticated", "internal"].includes(kind) &&
-    message.length > 12 &&
-    !/firebase|error|exception|undefined|null|fetch/i.test(message)
+    text.length > 12 &&
+    !/firebase|error|exception|undefined|null|fetch/i.test(text)
   )
-    return message;
+    return text;
   return "Não foi possível concluir agora. Confira sua conexão e tente novamente.";
 }
 const clock = (ms: number) =>
@@ -373,3 +375,78 @@ export function currentMonth(now: number) {
 // Folgas de hoje em diante (as passadas não afetam reservas e não precisam ser salvas).
 export const futureBlocks = (blocks: string[], now: number) =>
   blocks.filter((d) => d >= dayKey(now)).sort();
+
+// ---- RENACH e validade (cadastro e credencial do instrutor) ----
+// RENACH: sigla da UF + 9 dígitos (ex.: RJ123456789). Mesmo formato validado
+// no servidor (functions/domain.js, RENACH_PATTERN).
+const UFS = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" ");
+export function formatRenach(input: string) {
+  const raw = input.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const uf = raw.replace(/[^A-Z]/g, "").slice(0, 2);
+  const digits = raw.replace(/\D/g, "").slice(0, 9);
+  return uf + digits;
+}
+export function renachError(value: string) {
+  if (!/^[A-Z]{2}\d{9}$/.test(value))
+    return "Informe o RENACH: sigla da UF e 9 dígitos (ex.: RJ123456789).";
+  if (!UFS.includes(value.slice(0, 2))) return "Sigla de UF inválida no RENACH.";
+  return "";
+}
+// Validade digitada como DD/MM/AAAA, com barras inseridas durante a digitação.
+export function formatDateBR(input: string) {
+  const d = input.replace(/\D/g, "").slice(0, 8);
+  return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join("/");
+}
+// Fim do dia em Brasília (UTC−03), igual ao formato salvo antes (credentialExpires em ms).
+export function parseDateBR(value: string) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!m) return NaN;
+  const [day, month, year] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day)
+    return NaN;
+  return Date.UTC(year, month - 1, day, 23, 59, 59) + 3 * 3600000;
+}
+export function toDateBR(ms?: number) {
+  if (!ms) return "";
+  const [y, m, d] = dayKey(ms).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+// ---- Pendências da administração (gaveta de notificações do admin) ----
+// Derivadas do estado: aparecem assim que o servidor registra o envio e somem
+// quando a análise é decidida. Não dependem de o usuário ter "lido" algo.
+export type AdminPending = { id: string; title: string; at: number; tab: "Início" | "Ocorrências" };
+export function adminPending(state: {
+  users: Record<string, { id: string; name: string; role: string; approval?: string; credential?: string; identity?: { status: string; submittedAt?: number } }>;
+  tickets: Record<string, { id: string; kind: string; status: string; at?: number; owner: string }>;
+}): AdminPending[] {
+  const items: AdminPending[] = [];
+  for (const u of Object.values(state.users)) {
+    if (u.identity?.status === "pendente")
+      items.push({ id: `identity:${u.id}`, title: `Identidade · ${u.name}: aguardando verificação`, at: u.identity.submittedAt || 0, tab: "Início" });
+    if (u.role === "instrutor" && u.approval === "pendente" && u.credential)
+      items.push({ id: `credential:${u.id}`, title: `Credenciamento · ${u.name}: aguardando análise`, at: 0, tab: "Início" });
+  }
+  for (const t of Object.values(state.tickets))
+    if (t.status === "aberto")
+      items.push({
+        id: `ticket:${t.id}`,
+        title: `${t.kind === "disputa" ? "Contestação" : "Suporte"} · ${state.users[t.owner]?.name || "usuário"}: aberto`,
+        at: t.at || 0,
+        tab: "Ocorrências",
+      });
+  return items.sort((a, b) => b.at - a.at);
+}
+
+// Conclusão de aula pelo instrutor: espelha a regra do servidor ("complete").
+export function completionBlock(
+  b: { start: number; duration: number; paid?: boolean },
+  now: number,
+) {
+  if (!b.paid) return "Esta aula só pode ser finalizada após a confirmação do pagamento.";
+  const end = b.start + b.duration * 60000;
+  if (now < end)
+    return `Esta aula só pode ser finalizada após o término do horário estipulado (${clock(end)}).`;
+  return "";
+}

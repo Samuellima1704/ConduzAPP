@@ -264,7 +264,8 @@ export function IdentityPanel({
 }
 export function IdentityAdmin({ profile: u }: { profile: Profile }) {
   const { run, busy, state } = useSession();
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(""),
+    [reasonError, setReasonError] = useState("");
   const i = u.identity!;
   return (
     <Card style={s.gap}>
@@ -293,10 +294,19 @@ export function IdentityAdmin({ profile: u }: { profile: Profile }) {
       {i.status === "pendente" && (
         <>
           <Input
-            label="Parecer da verificação de identidade"
+            label="Parecer / motivo da rejeição"
             value={reason}
-            onChangeText={setReason}
+            error={reasonError || undefined}
+            onChangeText={(v) => {
+              setReason(v);
+              if (reasonError && v.trim().length >= 5) setReasonError("");
+            }}
           />
+          {!!reasonError && (
+            <Text accessibilityRole="alert" style={s.error}>
+              {reasonError}
+            </Text>
+          )}
           {["aprovado", "rejeitado"].map((decision) => (
             <Button
               key={decision}
@@ -307,15 +317,25 @@ export function IdentityAdmin({ profile: u }: { profile: Profile }) {
               }
               variant="secondary"
               disabled={busy}
-              onPress={() =>
-                run("reviewIdentity", {
+              onPress={() => {
+                // Motivo obrigatório: mesmo mínimo do servidor (functions/identity.js).
+                if (reason.trim().length < 5) {
+                  setReasonError(
+                    decision === "rejeitado"
+                      ? "Informe o motivo da rejeição (obrigatório, mínimo 5 caracteres)."
+                      : "Registre o parecer da análise (mínimo 5 caracteres).",
+                  );
+                  return;
+                }
+                setReasonError("");
+                void run("reviewIdentity", {
                   user: u.id,
                   decision,
                   reason,
                   documentPath: i.documentPath,
                   photoPath: i.photoPath,
-                })
-              }
+                });
+              }}
             />
           ))}
         </>

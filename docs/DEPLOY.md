@@ -56,9 +56,20 @@ O backend continua no Firebase (seção 1). A Vercel hospeda só a parte web.
 
 Com o modo local, o celular precisa alcançar o computador pela rede:
 
-1. Instalar o **Expo Go** (Play Store/App Store), na versão compatível com o SDK 56.
-2. Descobrir o IP do notebook: `ipconfig` → "Endereço IPv4" (ex.: 192.168.0.15).
-3. Hoje os emuladores escutam só em 127.0.0.1, por segurança. Para o celular acessá-los é preciso abri-los na rede local (`"host": "0.0.0.0"` em `firebase.json`) e iniciar o Expo com `--lan` e `EXPO_PUBLIC_EMULATOR_HOST=IP-DO-NOTEBOOK`. Faça isso **só em rede doméstica confiável**: o emulador aceita tokens sem assinatura.
+1. Instalar o **Expo Go** (Play Store/App Store) atualizado. O projeto usa o **SDK 58** (React Native 0.88, React 19.3, Expo Router 58); um Expo Go de outro SDK recusa abrir o app com "Project is incompatible with this version of Expo Go".
+2. Com o app parado (`.\Parar-ConduzAPP.ps1`), iniciar em modo celular:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Iniciar-ConduzAPP.ps1 -Celular
+   ```
+
+   O QR Code aparece na mesma janela; leia-o com o Expo Go (Android) ou a câmera (iPhone). Encerrar: Ctrl+C e `.\Parar-ConduzAPP.ps1`.
+3. O que o modo celular faz:
+   - os emuladores Auth, Firestore, Functions e Storage escutam também na rede local, por uma cópia gerada `firebase.rede.json` (fora do Git). O `firebase.json` continua só em 127.0.0.1, e o painel (4000) fica só no PC;
+   - o Expo anuncia o IP do notebook (`--lan`), e o app no celular usa esse mesmo IP para os emuladores (`emulatorHost` em `src/lib/firebase-config.ts`). `EXPO_PUBLIC_EMULATOR_HOST` continua tendo prioridade.
+   - Se o Expo anunciar o IP errado (ex.: o `26.x` de uma VPN), force o do Wi-Fi: `.\Iniciar-ConduzAPP.ps1 -Celular -IP 192.168.0.15` (veja em `ipconfig`, "Endereço IPv4").
+   - Na primeira vez, o Windows pergunta se libera o Node e o Java do projeto na rede: permita em **Redes privadas**. Se o aviso foi fechado, o celular mostra "Não foi possível conectar".
+   - Use **só em rede doméstica confiável**: o emulador aceita tokens sem assinatura.
 
 Com o backend publicado (seção 1), o Expo Go funciona de qualquer rede: `EXPO_PUBLIC_FIREBASE_MODE=cloud-demo` e `npx expo start --tunnel`.
 
@@ -77,7 +88,7 @@ npx eas-cli@latest build -p android --profile preview
 - `eas login` usa a sua conta Expo (gratuita); `eas init` grava o `projectId` no `app.json`.
 - O build roda na nuvem da Expo (plano gratuito com fila) e devolve um link e um QR Code para baixar o APK.
 - Identificador do app: `br.com.conduzapp`. Esquema de link: `conduzapp://`.
-- No celular, a sessão de login não persiste depois que o app é fechado: o SDK web do Firebase usa memória no React Native. Para lembrar o login é preciso `initializeAuth` com `@react-native-async-storage/async-storage`, uma nova dependência que ainda não foi adicionada.
+- No celular, o login fica salvo no AsyncStorage (`src/services/firebase-auth.native.ts`) e sobrevive ao fechar o app. Na web o Firebase continua usando o IndexedDB do navegador.
 
 ## 4. Endereço local `conduzapp.local` (opcional)
 

@@ -77,3 +77,6 @@ id_ed25519
 *service-account*.json
 *serviceAccount*.json
 *firebase-adminsdk*.json
+
+# Cópia gerada por scripts/run-emulators.ps1 -Rede (emuladores abertos na rede local)
+firebase.rede.json

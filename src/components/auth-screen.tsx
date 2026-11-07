@@ -4,9 +4,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
+import Head from "expo-router/head";
 import { auth, cloudDemo } from "@/services/firebase";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/services/firebase";
@@ -17,7 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Image } from "expo-image";
 import { UI } from "@/constants/theme";
-import { authFields, authMessage } from "@/lib/presentation";
+import {
+  authFields,
+  authMessage,
+  formatRenach,
+  renachError,
+} from "@/lib/presentation";
 export function AuthScreen({
   signup = false,
   role = "aluno",
@@ -40,7 +47,9 @@ export function AuthScreen({
       );
       return;
     }
-    const invalid = authFields(email, password, signup, name);
+    const invalid =
+      authFields(email, password, signup, name) ||
+      (signup && role === "instrutor" ? renachError(credential) : "");
     if (invalid) {
       setError(invalid);
       return;
@@ -53,11 +62,35 @@ export function AuthScreen({
           throw new Error(
             "Informe nome completo e senha com 8 ou mais caracteres.",
           );
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
-        await httpsCallable(
-          functions,
-          "conduz",
-        )({ op: "register", input: { name, role, credential } });
+        const register = () =>
+          httpsCallable(
+            functions,
+            "conduz",
+          )({ op: "register", input: { name, role, credential } });
+        let created = false;
+        try {
+          await createUserWithEmailAndPassword(auth, email.trim(), password);
+          created = true;
+        } catch (e) {
+          // Conta criada antes, mas sem perfil (cadastro interrompido): entra com a
+          // mesma senha e conclui o perfil aqui, sem a antiga tela "Preparar perfil".
+          if ((e as { code?: string }).code !== "auth/email-already-in-use")
+            throw e;
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+        }
+        try {
+          await register();
+        } catch (e) {
+          const message = String((e as { message?: string }).message || "");
+          if (!created && /Perfil já cadastrado/.test(message)) {
+            // Já tinha perfil: é só um login.
+          } else {
+            // O perfil não foi gravado: desfaz a conta recém-criada para o usuário
+            // poder tentar de novo, em vez de ficar com login sem perfil.
+            if (created && auth.currentUser) await deleteUser(auth.currentUser);
+            throw e;
+          }
+        }
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
@@ -71,6 +104,15 @@ export function AuthScreen({
   }
   return (
     <SafeAreaView style={s.page}>
+      <Head>
+        <title>
+          {signup
+            ? `Criar conta de ${role} · ConduzAPP`
+            : role === "instrutor"
+              ? "Entrar como instrutor · ConduzAPP"
+              : "Entrar · ConduzAPP"}
+        </title>
+      </Head>
       <ScrollView
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
@@ -126,9 +168,11 @@ export function AuthScreen({
             {signup && role === "instrutor" && (
               <>
                 <Input
-                  label="Autorização profissional (análise manual)"
+                  label="Número do RENACH"
+                  placeholder="RJ123456789"
+                  autoCapitalize="characters"
                   value={credential}
-                  onChangeText={setCredential}
+                  onChangeText={(v) => setCredential(formatRenach(v))}
                 />
                 <Text style={s.subtitle}>
                   A operação só será liberada após análise administrativa. Sem

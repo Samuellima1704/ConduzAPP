@@ -74,7 +74,7 @@ function fixture() {
     };
   Object.assign(s.users.t, {
     approval: "aprovado",
-    credential: "DEMO",
+    credential: "RJ123456789",
     credentialExpires: now + 30 * DAY,
     price: 8500,
     periods: Array.from({ length: 7 }, (_, day) => ({ day, from: 8, to: 20 })),
@@ -817,7 +817,7 @@ test("aula de 50 min: término, slots em hora cheia e segunda aula após interva
 test("instrutor suspenso ou com credencial em renovação ainda confirma início e conclui aula paga", () => {
   for (const change of [
     (s) => act(s, admin, "suspend", { instructor: "t", reason: "Ocorrência fictícia" }),
-    (s) => act(s, teacher, "credential", { credential: "RENOVADA", expires: now + 60 * DAY }),
+    (s) => act(s, teacher, "credential", { credential: "RJ987654321", expires: now + 60 * DAY }),
   ]) {
     let s = change(paid());
     const time = now + DAY;
@@ -1139,4 +1139,54 @@ test("folga marcada pelo calendário usa o formato salvo e remove os horários d
   assert.ok(livres.length > 0);
   assert.ok(livres.every((t) => new Date(t - 3 * HOUR).toISOString().slice(0, 10) !== dia));
   assert.throws(() => act(s, student, "book", { instructor: "t", start: now + DAY }), /disponibilidade/);
+});
+test("RENACH: máscara UF + 9 dígitos, validação no app e no servidor", () => {
+  assert.equal(ux.formatRenach("rj 123.456.789-0"), "RJ123456789");
+  assert.equal(ux.formatRenach("12rj34"), "RJ1234");
+  assert.equal(ux.renachError("RJ123456789"), "");
+  assert.match(ux.renachError("RJ12345"), /9 dígitos/);
+  assert.match(ux.renachError("XX123456789"), /UF inválida/);
+  const fresh = (input) => execute(empty(), { uid: "novo" }, "register", input, now);
+  assert.throws(() => fresh({ role: "instrutor", name: "Instrutor Teste", credential: "AUT-1" }), /RENACH/);
+  assert.throws(() => fresh({ role: "instrutor", name: "Instrutor Teste" }), /RENACH/);
+  assert.equal(fresh({ role: "aluno", name: "Aluno Teste" }).state.users.novo.role, "aluno");
+});
+test("validade DD/MM/AAAA: formata ao digitar, rejeita data inexistente e grava fim do dia em Brasília", () => {
+  assert.equal(ux.formatDateBR("3112"), "31/12");
+  assert.equal(ux.formatDateBR("31122027"), "31/12/2027");
+  assert.equal(ux.formatDateBR("31/12/2027 extra"), "31/12/2027");
+  assert.ok(Number.isNaN(ux.parseDateBR("31/02/2027")));
+  assert.ok(Number.isNaN(ux.parseDateBR("2027-12-31")));
+  const ms = ux.parseDateBR("31/12/2027");
+  // Mesmo valor do formato antigo (AAAA-MM-DD + T23:59:59-03:00): retrocompatível.
+  assert.equal(ms, Date.parse("2027-12-31T23:59:59-03:00"));
+  assert.equal(ux.toDateBR(ms), "31/12/2027");
+  assert.equal(ux.toDateBR(0), "");
+});
+test("conclusão de aula: botão bloqueado antes do término ou sem pagamento, com motivo amigável", () => {
+  const b = { start: now, duration: 50, paid: true };
+  assert.match(ux.completionBlock(b, now + 10 * 60000), /término do horário estipulado/);
+  assert.match(ux.completionBlock({ ...b, paid: false }, now + DAY), /pagamento/);
+  assert.equal(ux.completionBlock(b, now + 50 * 60000), "");
+  // Código HTTP anexado pelo SDK não chega à tela.
+  assert.equal(
+    ux.friendlyError({ code: "functions/failed-precondition", message: "Conclua somente após o término e o pagamento. [400]" }),
+    "Conclua somente após o término e o pagamento.",
+  );
+});
+test("admin: pendências de identidade, credenciamento e ocorrências abertas alimentam a gaveta", () => {
+  const pending = ux.adminPending({
+    users: {
+      m: { id: "m", name: "miguel", role: "aluno", identity: { status: "pendente", submittedAt: 5 } },
+      i: { id: "i", name: "Instrutor", role: "instrutor", approval: "pendente", credential: "RJ123456789", identity: { status: "aprovado" } },
+      ok: { id: "ok", name: "Ok", role: "instrutor", approval: "aprovado", credential: "RJ123456780", identity: { status: "aprovado" } },
+    },
+    tickets: {
+      t1: { id: "t1", kind: "suporte", status: "aberto", owner: "m", at: 9 },
+      t2: { id: "t2", kind: "disputa", status: "resolvido", owner: "m", at: 10 },
+    },
+  });
+  assert.deepEqual(pending.map((p) => p.id), ["ticket:t1", "identity:m", "credential:i"]);
+  assert.match(pending[1].title, /Identidade · miguel: aguardando verificação/);
+  assert.equal(pending[0].tab, "Ocorrências");
 });

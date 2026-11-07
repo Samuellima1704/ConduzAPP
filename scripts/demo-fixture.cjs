@@ -46,7 +46,7 @@ function demoFixture(now, scope, identities = {}) {
     bio: "Instrutor fictício para demonstração acadêmica.",
     specialty: "Prática e confiança ao dirigir",
     approval: "aprovado",
-    credential: "DEMO-AUTORIZACAO-001",
+    credential: "RJ000000101",
     credentialExpires: now + 90 * DAY,
     approvalReason: "Credencial fictícia analisada para demonstração local.",
     periods: Array.from({ length: 7 }, (_, day) => [
@@ -61,7 +61,7 @@ function demoFixture(now, scope, identities = {}) {
     id: "demo-pendente",
     name: "Instrutor Fictício Pendente",
     role: "instrutor",
-    credential: "DEMO-PENDENTE-002",
+    credential: "RJ000000102",
     credentialExpires: now + 90 * DAY,
     approval: "pendente",
     price: 8000,

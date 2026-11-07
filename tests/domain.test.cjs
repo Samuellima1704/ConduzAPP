@@ -31,7 +31,7 @@ function fixture() {
     photoPath: "fixture/teacher",
     identity: { status: "aprovado" },
     approval: "aprovado",
-    credential: "FICTICIA",
+    credential: "RJ123456781",
     credentialExpires: now + 30 * DAY,
     price: 9999,
     periods: Array.from({ length: 7 }, (_, day) => ({ day, from: 8, to: 20 })),
@@ -131,8 +131,10 @@ test("cadastro instrutor inicia pendente e sem horários", () => {
   const s = act(empty(), teacher, "register", {
     role: "instrutor",
     name: "Instrutor",
+    credential: "RJ123456782",
   });
   assert.equal(s.users.teacher.approval, "pendente");
+  assert.equal(s.users.teacher.credential, "RJ123456782");
   assert.deepEqual(slots(s, "teacher", now), []);
 });
 test("credenciamento manual exige autorização válida; suspensão e vencimento impedem reserva", () => {

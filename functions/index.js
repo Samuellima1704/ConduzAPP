@@ -105,6 +105,10 @@ exports.conduz = onCall(
           if (snap.exists)
             batch.update(ref, result.state, { lastUpdateTime: snap.updateTime });
           else batch.create(ref, result.state);
+          // Sinal de tempo real: só um número de versão, sem dados. O app escuta este
+          // documento (onSnapshot) e então busca o estado pela Function, que filtra o que
+          // cada usuário pode ver. As regras liberam a leitura apenas deste documento.
+          batch.set(db.doc(`signals/${scope}`), { version: Date.now() });
           // Vínculo usado pelas regras do Storage: grava só reservas novas ou alteradas.
           for (const b of Object.values(result.state.bookings)) {
             const before = state.bookings?.[b.id];

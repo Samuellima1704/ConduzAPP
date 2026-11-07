@@ -44,7 +44,7 @@ async function create() {
     state.users[p.uid] = {
       id: p.uid, name: `Instrutor ${i}`, role: "instrutor", region: "Volta Redonda", price: 8000,
       car: "Carro", transmission: i % 2 ? "Manual" : "Automático", bio: "", specialty: "",
-      credential: `AUT-${i}`, credentialExpires: now + 365 * DAY, approval: "aprovado",
+      credential: `RJ${String(i).padStart(9, "0")}`, credentialExpires: now + 365 * DAY, approval: "aprovado",
       periods: Array.from({ length: 7 }, (_, day) => ({ day, from: 7, to: 21 })), blocks: [],
       cancellations: 0, absences: 0, favorites: [], photoPath: `profilePhotos/${scope}/${p.uid}/foto.png`,
       identity: { status: "aprovado" },

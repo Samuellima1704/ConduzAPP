@@ -118,7 +118,7 @@ before(async () => {
     };
   Object.assign(baseline.users[users.instrutor.uid], {
     approval: "aprovado",
-    credential: "DEMO-TEST",
+    credential: "RJ123456780",
     credentialExpires: now + 30 * DAY,
     price: 8500,
     periods: Array.from({ length: 7 }, (_, day) => ({ day, from: 0, to: 24 })),
@@ -675,6 +675,23 @@ test("Firestore nega acesso direto a estado, reservas e escrita de privilégios"
       setDoc(doc(client, "agendamentos/fraude"), { status: "confirmado" }),
     );
   }
+});
+test("sinal de tempo real: só a versão do próprio ambiente é legível; escrita sempre negada", async () => {
+  // Uma escrita pela Function atualiza signals/<ambiente> no mesmo lote do estado.
+  await call("aluno", "favorite", { instructor: users.instrutor.uid });
+  const signal = await db.doc(`signals/${scope}`).get();
+  assert.ok(signal.exists && Number.isFinite(signal.data().version));
+  assert.deepEqual(Object.keys(signal.data()), ["version"]);
+  const mine = env.authenticatedContext(users.aluno.uid, { stateScope: scope }).firestore();
+  await assertSucceeds(getDoc(doc(mine, `signals/${scope}`)));
+  await assertFails(setDoc(doc(mine, `signals/${scope}`), { version: 1 }));
+  // Outro ambiente, a base local ("state") sem a claim correspondente e anônimo: negados.
+  await assertFails(getDoc(doc(mine, "signals/state")));
+  await assertFails(getDoc(doc(mine, "signals/test-outro")));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `signals/${scope}`)));
+  await assertFails(getDoc(doc(mine, `private/${scope}`)));
+  // Favorito volta ao estado anterior para não interferir nos demais testes.
+  await call("aluno", "favorite", { instructor: users.instrutor.uid });
 });
 test("fotos privadas: participante pode anexar, terceiro e anônimo não; admin lê", async () => {
   const booking = `${scope}-evidencia`;

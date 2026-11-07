@@ -6,9 +6,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { AppState } from "react-native";
 import { onAuthStateChanged, type User } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { auth, functions, cloudDemo } from "./firebase";
+import { auth, db, functions, cloudDemo } from "./firebase";
 import { friendlyError } from "@/lib/presentation";
 export type Profile = {
   id: string;
@@ -210,12 +212,57 @@ export function Session({ children }: { children: ReactNode }) {
       }),
     [],
   );
+  // Tempo real: o servidor grava signals/<ambiente> = { version } a cada alteração
+  // (functions/index.js). O app escuta esse documento e, quando ele muda, busca o
+  // estado pela Function, que filtra o que cada usuário pode ver. O estado em si
+  // continua inacessível ao cliente pelas regras do Firestore.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false,
+      unsubscribe = () => {},
+      debounce: ReturnType<typeof setTimeout> | undefined;
+    void user.getIdTokenResult().then((token) => {
+      if (cancelled) return;
+      const scope =
+        typeof token.claims.stateScope === "string"
+          ? token.claims.stateScope
+          : "state";
+      let first = true;
+      unsubscribe = onSnapshot(
+        doc(db, "signals", scope),
+        () => {
+          // O primeiro evento é o valor atual: o estado já foi carregado no login.
+          if (first) {
+            first = false;
+            return;
+          }
+          clearTimeout(debounce);
+          debounce = setTimeout(() => void refresh(), 150);
+        },
+        // Sem conexão com o listener: a verificação periódica abaixo cobre.
+        () => {},
+      );
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(debounce);
+      unsubscribe();
+    };
+  }, [user]);
+  // Rede de segurança: verificação a cada 30 s e ao voltar para o app
+  // (outra aba, celular desbloqueado), caso o listener tenha caído.
   useEffect(() => {
     if (!user) return;
     const timer = setInterval(() => {
       if (!busy) void refresh();
-    }, 10000);
-    return () => clearInterval(timer);
+    }, 30000);
+    const appState = AppState.addEventListener("change", (s) => {
+      if (s === "active") void refresh();
+    });
+    return () => {
+      clearInterval(timer);
+      appState.remove();
+    };
   }, [user, busy]);
   async function run(op: string, input: unknown = {}) {
     if (inFlight.current) return false;

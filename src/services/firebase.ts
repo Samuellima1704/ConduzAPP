@@ -1,9 +1,12 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
-import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectAuthEmulator } from "firebase/auth";
 import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
-import { firebaseSettings } from "@/lib/firebase-config";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
+import { emulatorHost, firebaseSettings } from "@/lib/firebase-config";
+import { createAuth } from "./firebase-auth";
 
 const settings = firebaseSettings({
   mode: process.env.EXPO_PUBLIC_FIREBASE_MODE,
@@ -16,10 +19,14 @@ const settings = firebaseSettings({
 export const cloudDemo = settings.mode === "cloud-demo";
 const app = getApps().length ? getApp() : initializeApp(settings.config);
 export const db = getFirestore(app);
-export const auth = getAuth(app);
+export const auth = createAuth(app);
 export const functions = getFunctions(app, "us-central1");
 export const storage = getStorage(app);
-const host = process.env.EXPO_PUBLIC_EMULATOR_HOST || "127.0.0.1";
+const host = emulatorHost({
+  platform: Platform.OS,
+  envHost: process.env.EXPO_PUBLIC_EMULATOR_HOST,
+  hostUri: Constants.expoConfig?.hostUri,
+});
 const state = globalThis as typeof globalThis & { conduzemulators?: boolean };
 if (!cloudDemo && !state.conduzemulators) {
   connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });

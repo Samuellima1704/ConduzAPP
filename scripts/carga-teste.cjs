@@ -42,11 +42,11 @@ const ALUNOS = [
   { key: "a5", name: "Juliana Ferreira Rocha", email: "juliana.rocha@conduzapp.local", password: "AlunoTeste5!", cpf: "901.837.425-32", region: "Centro · Barra Mansa", aprovado: false },
 ];
 const INSTRUTORES = [
-  { key: "i1", name: "Carlos Eduardo Pereira", email: "carlos.pereira@conduzapp.local", password: "InstrutorTeste1!", cpf: "438.217.096-69", region: "Aterrado · Volta Redonda", car: "Volkswagen Gol 1.0 2021", transmission: "Manual", price: 7000, specialty: "Primeira habilitação", bio: "Instrutor há 12 anos, paciente com quem está começando.", credential: "AUT-RJ-2026-0141", periods: week([1, 2, 3, 4, 5], [8, 12], [14, 18]), aprovado: true },
-  { key: "i2", name: "Fernanda Ribeiro Martins", email: "fernanda.martins@conduzapp.local", password: "InstrutorTeste2!", cpf: "672.049.318-31", region: "Vila Santa Cecília · Volta Redonda", car: "Hyundai HB20 1.0 Automático 2023", transmission: "Automático", price: 9500, specialty: "Câmbio automático e ansiedade ao volante", bio: "Especialista em alunos com medo de dirigir.", credential: "AUT-RJ-2026-0275", periods: week([1, 2, 3, 4, 5, 6], [7, 11]), aprovado: true },
-  { key: "i3", name: "Roberto Silveira", email: "roberto.silveira@conduzapp.local", password: "InstrutorTeste3!", cpf: "345.781.902-50", region: "Retiro · Volta Redonda", car: "Fiat Argo 1.3 2022", transmission: "Manual", price: 8000, specialty: "Baliza e rampa", bio: "Credenciado há 15 anos; foco em exame prático.", credential: "AUT-RJ-2026-0388", periods: week([1, 3, 5], [8, 12], [13, 17]), aprovado: true },
-  { key: "i4", name: "Patrícia Gomes Barbosa", email: "patricia.barbosa@conduzapp.local", password: "InstrutorTeste4!", cpf: "860.294.157-94", region: "Jardim Amália · Volta Redonda", car: "Toyota Yaris 1.5 CVT 2022", transmission: "Automático", price: 8500, specialty: "Trânsito urbano e rodovia", bio: "Aulas práticas em rodovia e horários noturnos.", credential: "AUT-RJ-2026-0452", periods: week([2, 4, 6], [9, 12], [18, 21]), aprovado: true },
-  { key: "i5", name: "Marcos Vinícius Teixeira", email: "marcos.teixeira@conduzapp.local", password: "InstrutorTeste5!", cpf: "197.653.048-20", region: "Centro · Barra Mansa", car: "Chevrolet Onix 1.0 2020", transmission: "Manual", price: 7500, specialty: "Reforço para habilitados", bio: "Para quem já tem CNH e quer voltar a dirigir.", credential: "AUT-RJ-2026-0519", periods: week([1, 2, 3, 4, 5], [10, 16]), aprovado: false },
+  { key: "i1", name: "Carlos Eduardo Pereira", email: "carlos.pereira@conduzapp.local", password: "InstrutorTeste1!", cpf: "438.217.096-69", region: "Aterrado · Volta Redonda", car: "Volkswagen Gol 1.0 2021", transmission: "Manual", price: 7000, specialty: "Primeira habilitação", bio: "Instrutor há 12 anos, paciente com quem está começando.", credential: "RJ202600141", periods: week([1, 2, 3, 4, 5], [8, 12], [14, 18]), aprovado: true },
+  { key: "i2", name: "Fernanda Ribeiro Martins", email: "fernanda.martins@conduzapp.local", password: "InstrutorTeste2!", cpf: "672.049.318-31", region: "Vila Santa Cecília · Volta Redonda", car: "Hyundai HB20 1.0 Automático 2023", transmission: "Automático", price: 9500, specialty: "Câmbio automático e ansiedade ao volante", bio: "Especialista em alunos com medo de dirigir.", credential: "RJ202600275", periods: week([1, 2, 3, 4, 5, 6], [7, 11]), aprovado: true },
+  { key: "i3", name: "Roberto Silveira", email: "roberto.silveira@conduzapp.local", password: "InstrutorTeste3!", cpf: "345.781.902-50", region: "Retiro · Volta Redonda", car: "Fiat Argo 1.3 2022", transmission: "Manual", price: 8000, specialty: "Baliza e rampa", bio: "Credenciado há 15 anos; foco em exame prático.", credential: "RJ202600388", periods: week([1, 3, 5], [8, 12], [13, 17]), aprovado: true },
+  { key: "i4", name: "Patrícia Gomes Barbosa", email: "patricia.barbosa@conduzapp.local", password: "InstrutorTeste4!", cpf: "860.294.157-94", region: "Jardim Amália · Volta Redonda", car: "Toyota Yaris 1.5 CVT 2022", transmission: "Automático", price: 8500, specialty: "Trânsito urbano e rodovia", bio: "Aulas práticas em rodovia e horários noturnos.", credential: "RJ202600452", periods: week([2, 4, 6], [9, 12], [18, 21]), aprovado: true },
+  { key: "i5", name: "Marcos Vinícius Teixeira", email: "marcos.teixeira@conduzapp.local", password: "InstrutorTeste5!", cpf: "197.653.048-20", region: "Centro · Barra Mansa", car: "Chevrolet Onix 1.0 2020", transmission: "Manual", price: 7500, specialty: "Reforço para habilitados", bio: "Para quem já tem CNH e quer voltar a dirigir.", credential: "RJ202600519", periods: week([1, 2, 3, 4, 5], [10, 16]), aprovado: false },
 ];
 const COLORS = ["#2457D6", "#0E8A6A", "#B5476B", "#8A5A00", "#5B3FC4", "#1F7A99", "#B03A2E", "#4E7A27", "#7A4E99", "#2E5E8A"];
 const initials = (name) => name.split(" ").filter((w) => w.length > 2).slice(0, 2).map((w) => w[0]).join("");
@@ -87,7 +87,7 @@ async function load() {
     const reviewer = admin?.id || "carga-de-teste";
     const identity = (p) =>
       p.aprovado
-        ? { status: "aprovado", documentPath: p.documentPath, photoPath: p.photoPath, submittedAt: now - 3 * DAY, reason: "Documento conferido na carga de teste.", reviewedBy: reviewer, reviewedAt: now - 2 * DAY }
+        ? { status: "aprovado", documentPath: p.documentPath, photoPath: p.photoPath, submittedAt: now - 3 * DAY, reason: "Documento conferido manualmente pela administração.", reviewedBy: reviewer, reviewedAt: now - 2 * DAY }
         : { status: "pendente", documentPath: p.documentPath, photoPath: p.photoPath, submittedAt: now - HOUR };
     for (const p of ALUNOS)
       s.users[p.uid] = { id: p.uid, name: p.name, role: "aluno", cpf: p.cpf, region: p.region, favorites: [], photoPath: p.photoPath, identity: identity(p) };
@@ -109,8 +109,8 @@ async function load() {
         id, student: a.uid, instructor: ins.uid, start, duration: LESSON_MIN, price: ins.price,
         commission: Math.round((ins.price * COMMISSION_PERCENT) / 100), status: "concluido", paid: true,
         paidAt: start - 2 * DAY, paymentMode: "simulado", createdAt: start - 3 * DAY, completedAt: start + LESSON_MIN * 60000,
-        address: { cep: "27255-000", street: "Rua de Teste", number: String(100 + n), neighborhood: a.region.split(" · ")[0], city: "Volta Redonda", uf: "RJ" },
-        location: `Rua de Teste, ${100 + n} · ${a.region.split(" · ")[0]} · Volta Redonda/RJ · CEP 27255000`,
+        address: { cep: "27255-000", street: "Rua 33", number: String(100 + n), neighborhood: a.region.split(" · ")[0], city: "Volta Redonda", uf: "RJ" },
+        location: `Rua 33, ${100 + n} · ${a.region.split(" · ")[0]} · Volta Redonda/RJ · CEP 27255000`,
         startCodeRequired: true,
         startConfirmation: { status: "confirmado", attempts: 0, availableAt: start, expiresAt: start + 10 * 60000, confirmedAt: start + 3 * 60000, confirmedBy: ins.uid },
         ratings: {}, payoutEligible: false,

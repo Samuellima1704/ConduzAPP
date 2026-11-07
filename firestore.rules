@@ -4,5 +4,13 @@ service cloud.firestore {
     // Toda leitura e mutação de negócio passa pela Function autenticada.
     // Inclui avaliações privadas e os estados isolados de testes/demonstração.
     match /{document=**} { allow read, write: if false; }
+    // Sinal de tempo real: contém só { version } (sem dados pessoais). O app escuta
+    // o documento do próprio ambiente e, quando muda, pede o estado à Function.
+    // Ambiente = claim stateScope (testes/demonstração) ou "state" (base local).
+    match /signals/{scope} {
+      allow read: if request.auth != null
+        && request.auth.token.get('stateScope', 'state') == scope;
+      allow write: if false;
+    }
   }
 }

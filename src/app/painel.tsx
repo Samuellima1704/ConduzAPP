@@ -3,12 +3,15 @@ import {
   ActivityIndicator,
   AppState,
   Image,
+  Platform,
   ScrollView,
   TouchableOpacity,
   View,
+  type ScrollViewInstance,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import Head from "expo-router/head";
 import { signOut } from "firebase/auth";
 import { ref, uploadBytes, listAll, getBytes } from "firebase/storage";
 import * as ImagePicker from "expo-image-picker";
@@ -54,6 +57,13 @@ import {
   actionable,
   toggleBlock,
   futureBlocks,
+  completionBlock,
+  adminPending,
+  formatRenach,
+  renachError,
+  formatDateBR,
+  parseDateBR,
+  toDateBR,
 } from "@/lib/presentation";
 const protocol = (id: string) =>
   id.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
@@ -97,16 +107,18 @@ function Action({
   title,
   onPress,
   danger = false,
+  disabled = false,
 }: {
   title: string;
   onPress: () => void;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   const { busy } = useSession();
   return (
     <Button
       title={title}
-      disabled={busy}
+      disabled={busy || disabled}
       variant={danger ? "danger" : "secondary"}
       onPress={onPress}
       style={s.action}
@@ -150,7 +162,7 @@ export default function Painel() {
   const [selected, setSelected] = useState<string | null>(
     params.instructor || null,
   );
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [searchKey, setSearchKey] = useState(0);
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -178,22 +190,41 @@ export default function Painel() {
         <Button title="Ir ao login" onPress={() => router.replace("/")} />
       </View>
     );
+  // Sem perfil: o cadastro (src/components/auth-screen.tsx) grava o perfil logo após
+  // criar o login e leva direto ao Perfil; esta tela só aparece em falha de conexão
+  // ou em conta antiga cujo cadastro foi interrompido.
   if (!me)
     return (
       <SafeAreaView style={s.page}>
         <ScrollView contentContainerStyle={s.content}>
-          <Heading
-            title="Preparar perfil"
-            sub={api.error || "Sua conta ainda não possui um perfil."}
+          {api.error ? (
+            <>
+              <Heading
+                title="Não foi possível carregar sua conta"
+                sub={api.error}
+              />
+              <Button title="Tentar novamente" onPress={api.refresh} />
+            </>
+          ) : (
+            <Heading
+              title="Cadastro incompleto"
+              sub="O login foi criado, mas o perfil não. Saia e use “Criar conta” com o mesmo e-mail e senha: o cadastro é concluído e você segue para o seu perfil."
+            />
+          )}
+          <Button
+            title="Sair"
+            variant="secondary"
+            onPress={() => signOut(auth)}
           />
-          <CompleteProfile />
-          <Button title="Tentar novamente" onPress={api.refresh} />
-          <Button title="Sair" onPress={() => signOut(auth)} />
         </ScrollView>
       </SafeAreaView>
     );
   const identityPending =
     me.role !== "admin" && me.identity?.status !== "aprovado";
+  // Contador do sino: avisos não lidos + (admin) pendências de análise e suporte.
+  const bellCount =
+    Object.values(api.state!.notifications || {}).filter((n) => !n.readAt)
+      .length + (me.role === "admin" ? adminPending(api.state!).length : 0);
   const tabs = identityPending
     ? ["Perfil"]
     : me.role === "admin"
@@ -201,6 +232,10 @@ export default function Painel() {
       : ["Início", "Agendamentos", "Mensagens", "Perfil"];
   return (
     <SafeAreaView style={s.page}>
+      {/* Título da aba (web) conforme a seção aberta, em vez do endereço da página. */}
+      <Head>
+        <title>{`${identityPending ? "Perfil" : tab} · ConduzAPP`}</title>
+      </Head>
       <View style={s.top}>
         <View style={s.topInner}>
           <TouchableOpacity
@@ -222,32 +257,24 @@ export default function Painel() {
               CONDUZ<Text style={s.brandAccent}> APP</Text>
             </Text>
           </TouchableOpacity>
+          {/* Sem botão "Atualizar": o app se atualiza sozinho pelo sinal de tempo real
+              (src/services/session.tsx). */}
           <View style={s.headerActions}>
             <TouchableOpacity
               accessibilityRole="button"
-              accessibilityLabel="Atualizar"
-              onPress={api.refresh}
-              style={s.iconButton}
-            >
-              <Icon name="refresh" color="white" size={20} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={
-                "Notificações (" +
-                Object.values(api.state!.notifications || {}).filter(
-                  (n) => !n.readAt,
-                ).length +
-                ")"
-              }
+              accessibilityLabel={`Notificações (${bellCount})`}
               accessibilityState={{ expanded: showNotifications }}
               onPress={() => setShowNotifications(!showNotifications)}
               style={s.iconButton}
             >
               <Icon name="bell" color="white" size={22} />
-              {Object.values(api.state!.notifications || {}).some(
-                (n) => !n.readAt,
-              ) && <View style={s.notificationDot} />}
+              {bellCount > 0 && (
+                <View style={s.bellBadge}>
+                  <Text style={s.unreadText}>
+                    {bellCount > 99 ? "99+" : bellCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -281,6 +308,9 @@ export default function Painel() {
       )}
       <ScrollView
         ref={scrollRef}
+        // Web: reserva o espaço da barra de rolagem. Sem isso, listas curtas (sem
+        // barra) e longas (com barra) deslocam o conteúdo centralizado para os lados.
+        style={Platform.OS === "web" && webStableScroll}
         contentContainerStyle={s.content}
         keyboardShouldPersistTaps="handled"
       >
@@ -445,28 +475,16 @@ export default function Painel() {
           setTab("Agendamentos");
           setShowNotifications(false);
         }}
+        goAdmin={(target) => {
+          setTab(target);
+          setShowNotifications(false);
+        }}
       />
     </SafeAreaView>
   );
 }
-function CompleteProfile() {
-  const { run } = useSession();
-  const [name, setName] = useState(""),
-    [role, setRole] = useState<"aluno" | "instrutor">("aluno");
-  return (
-    <Card style={s.gap}>
-      <Input label="Nome completo" value={name} onChangeText={setName} />
-      <View style={s.row}>
-        <Action title="Sou aluno" onPress={() => setRole("aluno")} />
-        <Action title="Sou instrutor" onPress={() => setRole("instrutor")} />
-      </View>
-      <Button
-        title={`Criar perfil de ${role}`}
-        onPress={() => run("register", { name, role })}
-      />
-    </Card>
-  );
-}
+// CSS só da web (não existe no React Native): ver ScrollView principal do painel.
+const webStableScroll = { scrollbarGutter: "stable" } as object;
 const datePart = (time: number, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Sao_Paulo",
@@ -494,10 +512,13 @@ function Search({
 }) {
   const { state, run, busy } = useSession();
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState(initialFavorites ? "favoritos" : "avulsas");
+  // Menu inicial com dois módulos: "Instrutores" (todos os aprovados) e "Favoritos".
+  const [mode, setMode] = useState(
+    initialFavorites ? "favoritos" : "instrutores",
+  );
   const onlyFavorites = mode === "favoritos";
   const setOnlyFavorites = (value: boolean) =>
-    setMode(value ? "favoritos" : "avulsas");
+    setMode(value ? "favoritos" : "instrutores");
   const [lessonCount, setLessonCount] = useState(1);
   const [slot, setSlot] = useState<number | null>(null);
   const [chosenDay, setChosenDay] = useState("");
@@ -586,7 +607,7 @@ function Search({
                 {u.bio || "Perfil profissional de instrutor."}
               </Text>
               <Text style={s.small}>
-                Autorização profissional analisada manualmente.
+                RENACH e credenciamento analisados manualmente.
               </Text>
             </View>
           )}
@@ -801,17 +822,20 @@ function Search({
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityState={{ selected: !onlyFavorites }}
-          onPress={() => setOnlyFavorites(false)}
+          onPress={() => {
+            setOnlyFavorites(false);
+            setSearch("");
+          }}
           style={s.quickFilter}
         >
           <View style={[s.quickIcon, !onlyFavorites && s.quickIconActive]}>
             <Icon
-              name="car"
+              name="user"
               color={!onlyFavorites ? "#fff" : UI.color.primary}
               size={25}
             />
           </View>
-          <Text style={s.quickLabel}>Aulas avulsas</Text>
+          <Text style={s.quickLabel}>Instrutores</Text>
         </TouchableOpacity>
         <TouchableOpacity
           accessibilityRole="button"
@@ -827,19 +851,6 @@ function Search({
             />
           </View>
           <Text style={s.quickLabel}>Favoritos</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityRole="button"
-          onPress={() => {
-            setMode("instrutores");
-            setSearch("");
-          }}
-          style={s.quickFilter}
-        >
-          <View style={s.quickIcon}>
-            <Icon name="user" size={25} />
-          </View>
-          <Text style={s.quickLabel}>Instrutores</Text>
         </TouchableOpacity>
       </View>
       <View style={s.sectionHeading}>
@@ -977,7 +988,6 @@ function InstructorHome({
         </View>
         <Text style={s.small}>
           Valores após a taxa de 12% da plataforma e eventuais estornos.
-          Ambiente de homologação: sem transferência bancária.
         </Text>
       </Card>
       {d.toComplete > 0 && (
@@ -988,19 +998,29 @@ function InstructorHome({
           Conclua em Agendamentos para liberar a avaliação.
         </Text>
       )}
-      <Button title="Ver solicitações e aulas" onPress={goBookings} />
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityState={{ expanded: showAvailability }}
-        style={s.disclosure}
-        onPress={() => setShowAvailability(!showAvailability)}
-      >
-        <Icon name="calendar" />
-        <Text style={s.flex}>Sua disponibilidade</Text>
-        <Text style={s.link}>{showAvailability ? "Recolher" : "Abrir"}</Text>
-      </TouchableOpacity>
-      <View style={!showAvailability && { display: "none" }}>
-        <Availability />
+      {/* Ações da agenda agrupadas: o botão de aulas e o seletor de horários ficam
+          juntos, com o mesmo espaçamento, em vez de soltos na página. */}
+      <View style={s.agendaActions}>
+        <Button title="Ver solicitações e aulas" onPress={goBookings} />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showAvailability }}
+          accessibilityLabel="Marque seus horários"
+          style={s.disclosure}
+          onPress={() => setShowAvailability(!showAvailability)}
+        >
+          <View style={s.disclosureIcon}>
+            <Icon name="calendar" color={UI.color.primary} />
+          </View>
+          <View style={s.flex}>
+            <Text style={s.disclosureTitle}>Marque seus horários</Text>
+            <Text style={s.small}>Grade semanal e folgas por data</Text>
+          </View>
+          <Text style={s.link}>{showAvailability ? "Recolher" : "Abrir"}</Text>
+        </TouchableOpacity>
+        <View style={!showAvailability && { display: "none" }}>
+          <Availability />
+        </View>
       </View>
       <Card style={s.gap}>
         <Text style={s.cardTitle}>Próximas aulas confirmadas</Text>
@@ -1118,7 +1138,7 @@ function Availability() {
   return (
     <Card style={s.gap}>
       <Heading
-        title="Sua disponibilidade"
+        title="Marque seus horários"
         sub="Vários períodos por dia. Sem períodos, não há horários para reservas."
       />
       <View style={s.row}>
@@ -1208,7 +1228,7 @@ function Bookings({ onProfile }: { onProfile?: (id: string) => void }) {
         title="Seus agendamentos"
         sub="Solicitações, pagamentos e histórico em um só lugar."
       />
-      <View style={s.row}>
+      <View style={[s.row, s.filterRow]}>
         {bookingFilters.map((f) => (
           <TouchableOpacity
             key={f}
@@ -1217,7 +1237,9 @@ function Bookings({ onProfile }: { onProfile?: (id: string) => void }) {
             style={[s.chip, filter === f && s.slotActive]}
             onPress={() => setFilter(f)}
           >
-            <Text style={filter === f ? s.white : s.link}>
+            {/* Mesmo peso e tamanho de fonte com ou sem seleção: o botão não muda de
+                largura e a grade de filtros não "pula" ao trocar de categoria. */}
+            <Text style={[s.link, filter === f && s.white]}>
               {f} ({all.filter((b) => matchesBooking(b, f, state!.now)).length})
             </Text>
           </TouchableOpacity>
@@ -1364,17 +1386,11 @@ function BookingCard({
               </>
             )}
           {student && b.status === "aguardando_pagamento" && actionable(b, now) && (
-            <>
-              <Button
-                title={"Confirmar pagamento · " + money(paymentTotal)}
-                onPress={() => run("pay", { booking: b.id })}
-              />
-              {/* Sem gateway integrado: a confirmação registra o pagamento sem cobrança. */}
-              <Text style={s.small}>
-                Ambiente de homologação: a confirmação registra o pagamento
-                sem cobrança no cartão.
-              </Text>
-            </>
+            // Sem gateway integrado: a confirmação registra o pagamento no servidor.
+            <Button
+              title={"Confirmar pagamento · " + money(paymentTotal)}
+              onPress={() => run("pay", { booking: b.id })}
+            />
           )}
           {(student || teacher) &&
             ["solicitado", "aguardando_pagamento", "confirmado"].includes(
@@ -1440,11 +1456,20 @@ function BookingCard({
               )}
             </Card>
           )}
+          {/* Mesma regra do servidor (functions/domain.js, "complete"): só após o
+              término e com pagamento confirmado. O botão fica desativado com o motivo
+              em vez de deixar o servidor recusar com erro. */}
           {teacher && b.status === "confirmado" && (
-            <Action
-              title="Concluir aula após o término"
-              onPress={() => run("complete", { booking: b.id })}
-            />
+            <View style={s.gapSmall}>
+              <Action
+                title="Concluir aula após o término"
+                disabled={!!completionBlock(b, now)}
+                onPress={() => run("complete", { booking: b.id })}
+              />
+              {!!completionBlock(b, now) && (
+                <Text style={s.small}>{completionBlock(b, now)}</Text>
+              )}
+            </View>
           )}
           {student && b.status === "concluido" && !b.studentConfirmed && (
             <Action
@@ -2053,7 +2078,9 @@ function Profile({ navigate }: { navigate?: (tab: string) => void }) {
     [specialty, setSpecialty] = useState(me.specialty || ""),
     [price, setPrice] = useState(String((me.price || 8000) / 100)),
     [credential, setCredential] = useState(me.credential || ""),
-    [expires, setExpires] = useState(""),
+    // Validade exibida e digitada no formato brasileiro (DD/MM/AAAA).
+    [expires, setExpires] = useState(toDateBR(me.credentialExpires)),
+    [credentialError, setCredentialError] = useState(""),
     [reason, setReason] = useState("");
   return (
     <View style={s.gap}>
@@ -2140,7 +2167,7 @@ function Profile({ navigate }: { navigate?: (tab: string) => void }) {
           {me.role === "instrutor" && (
             <MenuRow
               icon="shield"
-              title="Autorização profissional"
+              title="Número do RENACH"
               expanded={section === "credential"}
               onPress={() => toggle("credential")}
             />
@@ -2225,27 +2252,44 @@ function Profile({ navigate }: { navigate?: (tab: string) => void }) {
       {me.role === "instrutor" && section === "credential" && (
         <Card style={s.gap}>
           <Heading
-            title="Autorização profissional"
+            title="Número do RENACH"
             sub={`Situação: ${me.approval}. Alterações exigem nova análise manual.`}
           />
           <Input
-            label="Número da autorização"
+            label="Número do RENACH"
+            placeholder="RJ123456789"
+            autoCapitalize="characters"
             value={credential}
-            onChangeText={setCredential}
+            onChangeText={(v) => setCredential(formatRenach(v))}
           />
           <Input
-            label="Validade (AAAA-MM-DD)"
+            label="Validade (DD/MM/AAAA)"
+            placeholder="31/12/2027"
+            keyboardType="number-pad"
+            maxLength={10}
             value={expires}
-            onChangeText={setExpires}
+            onChangeText={(v) => setExpires(formatDateBR(v))}
           />
+          {!!credentialError && (
+            <Text accessibilityRole="alert" style={s.error}>
+              {credentialError}
+            </Text>
+          )}
           <Button
             title="Enviar para análise"
-            onPress={() =>
-              run("credential", {
-                credential,
-                expires: Date.parse(expires + "T23:59:59-03:00"),
-              })
-            }
+            onPress={() => {
+              const expiresAt = parseDateBR(expires);
+              const problem =
+                renachError(credential) ||
+                (Number.isNaN(expiresAt)
+                  ? "Informe a validade completa no formato DD/MM/AAAA."
+                  : expiresAt <= state!.now
+                    ? "A validade precisa ser uma data futura."
+                    : "");
+              setCredentialError(problem);
+              if (!problem)
+                void run("credential", { credential, expires: expiresAt });
+            }}
           />
         </Card>
       )}
@@ -2379,16 +2423,30 @@ function Admin({ tab }: { tab: string }) {
 }
 function InstructorAdmin({ profile: u }: { profile: Profile }) {
   const { run } = useSession();
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(""),
+    [reasonError, setReasonError] = useState("");
+  // Rejeitar sem motivo não é permitido (o servidor também recusa, functions/domain.js).
+  const decide = (decision: "aprovado" | "rejeitado") => {
+    if (reason.trim().length < 3) {
+      setReasonError(
+        decision === "rejeitado"
+          ? "Informe o motivo da rejeição (obrigatório)."
+          : "Registre o parecer da análise manual.",
+      );
+      return;
+    }
+    setReasonError("");
+    void run("approve", { instructor: u.id, decision, reason });
+  };
   return (
     <Card style={s.gap}>
       <Text style={s.cardTitle}>
         {u.name} · {u.approval}
       </Text>
-      <Text>Autorização: {u.credential || "Não enviada"}</Text>
+      <Text>RENACH: {u.credential || "Não enviado"}</Text>
       <Text style={s.muted}>
         Validade:{" "}
-        {u.credentialExpires ? dateTime(u.credentialExpires) : "Não enviada"}
+        {u.credentialExpires ? toDateBR(u.credentialExpires) : "Não enviada"}
       </Text>
       <Text style={s.muted}>
         Cancelamentos: {u.cancellations || 0} · Faltas confirmadas:{" "}
@@ -2401,23 +2459,25 @@ function InstructorAdmin({ profile: u }: { profile: Profile }) {
         <Text>Suspensão até {dateTime(u.suspendedUntil)}</Text>
       )}
       <Input
-        label="Parecer da análise manual"
+        label="Parecer / motivo da rejeição"
         value={reason}
-        onChangeText={setReason}
+        error={reasonError || undefined}
+        onChangeText={(v) => {
+          setReason(v);
+          if (reasonError && v.trim().length >= 3) setReasonError("");
+        }}
       />
+      {!!reasonError && (
+        <Text accessibilityRole="alert" style={s.error}>
+          {reasonError}
+        </Text>
+      )}
       <View style={s.row}>
         <Action
           title="Aprovar credenciamento"
-          onPress={() =>
-            run("approve", { instructor: u.id, decision: "aprovado", reason })
-          }
+          onPress={() => decide("aprovado")}
         />
-        <Action
-          title="Rejeitar"
-          onPress={() =>
-            run("approve", { instructor: u.id, decision: "rejeitado", reason })
-          }
-        />
+        <Action title="Rejeitar" onPress={() => decide("rejeitado")} />
         <Action
           danger
           title="Suspender por 7 dias"

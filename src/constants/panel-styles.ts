@@ -39,6 +39,18 @@ export const panelStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  bellBadge: {
+    position: "absolute",
+    top: 4,
+    right: 0,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: c.dangerText,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   notificationDot: {
     width: 7,
     height: 7,
@@ -85,6 +97,16 @@ export const panelStyles = StyleSheet.create({
     borderColor: c.border,
     borderRadius: UI.radius.control,
   },
+  agendaActions: { gap: 10 },
+  disclosureIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: UI.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: c.primarySoft,
+  },
+  disclosureTitle: { fontSize: 15, fontWeight: "700", color: c.text },
   credentialToggle: {
     flexDirection: "row",
     alignItems: "center",
@@ -118,6 +140,8 @@ export const panelStyles = StyleSheet.create({
     borderRadius: UI.radius.small,
   },
   slotActive: { backgroundColor: c.primary, borderColor: c.primary },
+  // Grade de filtros de agendamentos: não encolhe quando a lista abaixo muda.
+  filterRow: { flexShrink: 0, alignItems: "flex-start" },
   chip: {
     padding: 12,
     minHeight: 44,

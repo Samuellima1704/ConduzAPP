@@ -40,3 +40,21 @@ export function firebaseSettings(input: Settings) {
     config: { apiKey, authDomain, projectId, storageBucket, appId },
   };
 }
+
+// Endereço dos emuladores. No navegador do próprio PC, 127.0.0.1 basta. No
+// celular (Expo Go), 127.0.0.1 é o próprio aparelho: usa-se o IP do PC que
+// serviu o app (hostUri do Expo, ex.: "192.168.0.15:8081"). A variável
+// EXPO_PUBLIC_EMULATOR_HOST, quando definida, tem prioridade nos dois casos.
+export function emulatorHost(input: {
+  platform: string;
+  envHost?: string;
+  hostUri?: string | null;
+}) {
+  const env = input.envHost?.trim();
+  if (env) return env;
+  if (input.platform !== "web" && input.hostUri) {
+    const host = input.hostUri.replace(/^[a-z]+:\/\//i, "").split(/[:/]/)[0];
+    if (host) return host;
+  }
+  return "127.0.0.1";
+}

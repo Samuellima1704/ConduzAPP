@@ -15,7 +15,11 @@ import { useSession, dateTime } from "@/services/session";
 import { ThemedText as Text } from "@/components/themed-text";
 import { Icon } from "@/components/ui/icon";
 import { UI } from "@/constants/theme";
-import { visibleNotifications } from "@/lib/presentation";
+import {
+  adminPending,
+  visibleNotifications,
+  type AdminPending,
+} from "@/lib/presentation";
 
 const DURATION_MS = 220;
 
@@ -26,11 +30,13 @@ export function NotificationsDrawer({
   onClose,
   goBookings,
   goProfile,
+  goAdmin,
 }: {
   open: boolean;
   onClose: () => void;
   goBookings: () => void;
   goProfile: () => void;
+  goAdmin?: (tab: AdminPending["tab"]) => void;
 }) {
   const { state, run, busy } = useSession();
   const { width } = useWindowDimensions();
@@ -68,6 +74,10 @@ export function NotificationsDrawer({
   );
   const list = showArchived ? [...current, ...archived] : current;
   const unread = current.filter((n) => !n.readAt);
+  // Admin: pendências derivadas do estado (identidades, credenciamentos e ocorrências
+  // abertas). Chegam pelo sinal de tempo real e somem quando a análise é decidida.
+  const pending =
+    state?.me?.role === "admin" && state ? adminPending(state) : [];
 
   // Abrir um aviso marca como lido e leva à tela relacionada.
   async function openItem(n: (typeof list)[number]) {
@@ -109,7 +119,12 @@ export function NotificationsDrawer({
           <View style={s.flex}>
             <Text style={s.title}>Notificações</Text>
             <Text style={s.subtitle}>
-              {unread.length ? `${unread.length} não ${unread.length === 1 ? "lida" : "lidas"}` : "Tudo em dia"}
+              {[
+                unread.length && `${unread.length} não ${unread.length === 1 ? "lida" : "lidas"}`,
+                pending.length && `${pending.length} ${pending.length === 1 ? "pendência" : "pendências"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Tudo em dia"}
             </Text>
           </View>
           <TouchableOpacity
@@ -134,7 +149,32 @@ export function NotificationsDrawer({
         )}
         {/* Rolagem interna: a lista não empurra nem cobre o restante do app. */}
         <ScrollView style={s.flex} contentContainerStyle={s.list}>
-          {!list.length && (
+          {pending.length > 0 && (
+            <Text style={s.section}>Pendências da administração ({pending.length})</Text>
+          )}
+          {pending.map((p) => (
+            <TouchableOpacity
+              key={p.id}
+              onPress={() => goAdmin?.(p.tab)}
+              accessibilityRole="button"
+              accessibilityLabel={`Pendência: ${p.title}`}
+              style={[s.item, s.itemPending]}
+            >
+              <View style={[s.dot, s.dotPending]} />
+              <View style={s.flex}>
+                <Text style={[s.itemTitle, s.itemTitleUnread]}>{p.title}</Text>
+                <Text style={s.itemMeta}>
+                  {p.at ? `${dateTime(p.at)} · ` : ""}
+                  {p.tab === "Ocorrências" ? "Ver ocorrências" : "Analisar no início"}
+                </Text>
+              </View>
+              <Icon name="chevron" size={14} color={UI.color.textSecondary} />
+            </TouchableOpacity>
+          ))}
+          {pending.length > 0 && list.length > 0 && (
+            <Text style={s.section}>Avisos</Text>
+          )}
+          {!list.length && !pending.length && (
             <View style={s.empty}>
               <Icon name="bell" size={28} color={UI.color.textSecondary} />
               <Text style={s.subtitle}>Nenhuma notificação hoje.</Text>
@@ -231,6 +271,9 @@ const s = StyleSheet.create({
     borderColor: UI.color.border,
   },
   itemUnread: { backgroundColor: UI.color.primarySoft, borderColor: UI.color.primaryLight },
+  itemPending: { backgroundColor: UI.color.warningSoft, borderColor: "#F3D58A" },
+  dotPending: { backgroundColor: UI.color.warningText },
+  section: { fontSize: 12, fontWeight: "800", color: UI.color.textSecondary, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.4 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "transparent" },
   dotUnread: { backgroundColor: UI.color.primary },
   itemTitle: { fontSize: 13, lineHeight: 18, color: UI.color.text },

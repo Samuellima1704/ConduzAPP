@@ -20,6 +20,9 @@ const DAY = 24 * HOUR;
 // Aula padrão de 50 minutos iniciando em hora cheia; os 10 minutos restantes são intervalo.
 // Reservas antigas preservam a própria duração.
 const LESSON_MIN = 50;
+// RENACH do instrutor: sigla da UF + 9 dígitos (ex.: RJ123456789). Mesmo formato do app.
+const RENACH_PATTERN = /^(AC|AL|AM|AP|BA|CE|DF|ES|GO|MA|MG|MS|MT|PA|PB|PE|PI|PR|RJ|RN|RO|RR|RS|SC|SE|SP|TO)\d{9}$/;
+const RENACH_MESSAGE = "Informe o RENACH: sigla da UF e 9 dígitos (ex.: RJ123456789).";
 // Taxa de intermediação (take rate) do modelo de negócio, sobre cada aula; congelada na reserva.
 const COMMISSION_PERCENT = 12;
 const fail = (message) => {
@@ -456,6 +459,8 @@ function execute(
     check(!me, "Perfil já cadastrado.");
     check(["aluno", "instrutor"].includes(input.role), "Perfil inválido.");
     check(text(input.name).length >= 3, "Informe seu nome completo.");
+    if (input.role === "instrutor")
+      check(RENACH_PATTERN.test(text(input.credential)), RENACH_MESSAGE);
     s.users[actor.uid] = {
       id: actor.uid,
       name: text(input.name, 120),
@@ -540,12 +545,11 @@ function execute(
           operationError = confirmStart(b, actor, input, now);
           break;
         case "credential":
+          check(me.role === "instrutor", "Ação exclusiva do instrutor.");
+          check(RENACH_PATTERN.test(text(input.credential)), RENACH_MESSAGE);
           check(
-            me.role === "instrutor" &&
-              text(input.credential).length >= 3 &&
-              Number.isFinite(input.expires) &&
-              input.expires > now,
-            "Informe autorização profissional e validade futura.",
+            Number.isFinite(input.expires) && input.expires > now,
+            "Informe a validade (DD/MM/AAAA) com data futura.",
           );
           Object.assign(me, {
             credential: text(input.credential, 120),

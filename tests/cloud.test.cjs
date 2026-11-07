@@ -14,7 +14,7 @@ moduleConfig._compile(
   }).outputText,
   __filename,
 );
-const { firebaseSettings } = moduleConfig.exports;
+const { firebaseSettings, emulatorHost } = moduleConfig.exports;
 test("CORS das fotos permite leitura nas origens HTTPS do app e preserva configuração existente", () => {
   const { storageCors } = require("../scripts/cloud-session.cjs");
   const existing = [
@@ -189,4 +189,16 @@ test("relógio de ensaio online exige confiança do servidor, administrador e ce
       ),
     /administrador/,
   );
+});
+test("celular no Expo Go usa o IP do PC para os emuladores; web e variável explícita mantêm a regra", () => {
+  // Navegador no próprio PC: loopback.
+  assert.equal(emulatorHost({ platform: "web", hostUri: "192.168.0.15:8081" }), "127.0.0.1");
+  // Celular: o hostUri do Expo aponta para o PC que serviu o bundle.
+  assert.equal(emulatorHost({ platform: "android", hostUri: "192.168.0.15:8081" }), "192.168.0.15");
+  assert.equal(emulatorHost({ platform: "ios", hostUri: "exp://10.0.0.7:8081/--/" }), "10.0.0.7");
+  // Sem hostUri (build de produção), cai no loopback.
+  assert.equal(emulatorHost({ platform: "android", hostUri: null }), "127.0.0.1");
+  // A variável EXPO_PUBLIC_EMULATOR_HOST sempre vence, sem espaços sobrando.
+  assert.equal(emulatorHost({ platform: "android", envHost: " 192.168.1.9 ", hostUri: "10.0.0.7:8081" }), "192.168.1.9");
+  assert.equal(emulatorHost({ platform: "web", envHost: "192.168.1.9" }), "192.168.1.9");
 });
